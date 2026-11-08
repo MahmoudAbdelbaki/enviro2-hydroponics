@@ -1,0 +1,19 @@
+{
+  "name": "hydro-twin-studio",
+  "private": true,
+  "version": "1.0.0",
+  "description": "User-friendly 3D digital twin studio for the Hydro NFT lettuce simulator (standalone frontend; talks to ./bin/hydro over REST).",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test:twin": "node tests/headless_twin.test.mjs"
+  },
+  "dependencies": {
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "vite": "^7.1.0"
+  }
+}

@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/abdelbaky/hydro/schema/farm.schema.json",
+  "title": "Hydroponic NFT Lettuce Farm Specification",
+  "description": "Configurable digital twin farm definition mapping 3D component IDs to PHYSICS_SPEC.md Section 0.1 Master Configuration Inputs.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "name",
+    "location",
+    "enclosure",
+    "reservoir",
+    "pump",
+    "aerator",
+    "fans",
+    "channels",
+    "source_water",
+    "initial_solution",
+    "dosing_stocks",
+    "sensors"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema version for forward compatibility."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "location": {
+      "type": "object",
+      "required": ["lat_deg", "lon_deg", "elevation_m", "start_doy"],
+      "additionalProperties": false,
+      "properties": {
+        "lat_deg": { "type": "number", "minimum": -66.5, "maximum": 66.5, "description": "Latitude in degrees (converted to phi_lat rad)." },
+        "lon_deg": { "type": "number", "minimum": -180.0, "maximum": 180.0, "description": "Longitude in degrees (converted to lambda_lon rad)." },
+        "elevation_m": { "type": "number", "minimum": -50.0, "maximum": 4000.0, "description": "Site elevation z_elev [m]." },
+        "start_doy": { "type": "integer", "minimum": 1, "maximum": 365, "description": "Simulation start day of year DOY_0 [1..365]." }
+      }
+    },
+    "enclosure": {
+      "type": "object",
+      "required": ["id", "type", "floor_area_m2", "air_volume_m3", "cover_transmittance", "vent_conductance_m_s"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/componentId" },
+        "type": {
+          "type": "string",
+          "enum": ["open_air", "shade_net", "greenhouse", "indoor_LED"],
+          "description": "Enclosure structural regime E_type."
+        },
+        "floor_area_m2": { "type": "number", "exclusiveMinimum": 0.0, "description": "Cropped floor area A_fl [m^2]. Must be >= sum(L_ch * W_ch)." },
+        "air_volume_m3": { "type": "number", "exclusiveMinimum": 0.0, "description": "Internal air volume V_enc [m^3]." },
+        "cover_transmittance": { "type": "number", "minimum": 0.0, "maximum": 1.0, "description": "Cover shortwave/PAR transmittance tau_cov [-]." },
+        "vent_conductance_m_s": { "type": "number", "minimum": 0.0, "maximum": 5.0, "description": "Passive ventilation conductance per floor area U_vent [m/s]." }
+      }
+    },
+    "reservoir": {
+      "type": "object",
+      "required": ["id", "initial_volume_l", "max_volume_l", "surface_area_m2", "wall_conductance_w_m2_k", "placement"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/componentId" },
+        "initial_volume_l": { "type": "number", "exclusiveMinimum": 0.0, "description": "Initial liquid volume V_res,0 [L] (converted to m^3)." },
+        "max_volume_l": { "type": "number", "exclusiveMinimum": 0.0, "description": "Maximum tank capacity V_res,max [L] for safety overflow checks." },
+        "surface_area_m2": { "type": "number", "exclusiveMinimum": 0.0, "description": "Free water surface area A_res [m^2]." },
+        "wall_conductance_w_m2_k": { "type": "number", "minimum": 0.2, "maximum": 15.0, "description": "Wall/lid thermal conductance U_res [W m^-2 K^-1]." },
+        "placement": { "type": "string", "enum": ["indoor", "shaded", "sun"], "description": "Reservoir placement regime P_res." }
+      }
+    },
+    "pump": {
+      "type": "object",
+      "required": ["id", "rated_flow_l_min", "initial_health"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/componentId" },
+        "rated_flow_l_min": { "type": "number", "exclusiveMinimum": 0.0, "description": "Rated total volumetric flow rate Q_pump,rated [L/min]." },
+        "initial_health": { "type": "number", "minimum": 0.0, "maximum": 1.0, "description": "Dimensionless pump health factor eta_pump [0..1]." }
+      }
+    },
+    "aerator": {
+      "type": "object",
+      "required": ["id", "air_flow_l_min", "otr_std_g_h"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/componentId" },
+        "air_flow_l_min": { "type": "number", "minimum": 0.0, "description": "Sparged air volumetric flow rate Q_air [L/min]." },
+        "otr_std_g_h": { "type": "number", "minimum": 0.0, "description": "Standard oxygen transfer rating OTR_std at 20C [g O2/h]." }
+      }
+    },
+    "fans": {
+      "type": "object",
+      "required": ["id", "placement", "airflow_m3_s"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/componentId" },
+        "placement": {
+          "type": "string",
+          "enum": ["none", "exhaust", "horizontal_canopy", "vertical_destrat"],
+          "description": "Fan placement mode P_fan."
+        },
+        "airflow_m3_s": { "type": "number", "minimum": 0.0, "description": "Total active fan volumetric airflow Q_fan [m^3/s]." }
+      }
+    },
+    "channels": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 200,
+      "description": "Parallel NFT gullies (len(channels) = N_ch). Each gully has its own component ID for 3D highlighting.",
+      "items": {
+        "type": "object",
+        "required": ["id", "length_m", "width_m", "slope", "plant_spacing_m", "plants_per_channel", "initial_plant_age_days"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/$defs/componentId" },
+          "length_m": { "type": "number", "exclusiveMinimum": 0.0, "maximum": 50.0, "description": "Gully length L_ch [m]." },
+          "width_m": { "type": "number", "exclusiveMinimum": 0.0, "maximum": 1.0, "description": "Wetted bottom width W_ch [m]." },
+          "slope": { "type": "number", "minimum": 0.005, "maximum": 0.05, "description": "Longitudinal bed slope S_0 [m/m] (0.5% to 5%)." },
+          "plant_spacing_m": { "type": "number", "exclusiveMinimum": 0.0, "description": "Center-to-center plant spacing s_pl [m]. Must satisfy s_pl * N_pl,ch <= L_ch." },
+          "plants_per_channel": { "type": "integer", "minimum": 0, "maximum": 500, "description": "Number of plants per gully N_pl,ch [-]." },
+          "initial_plant_age_days": { "type": "number", "minimum": 0.0, "maximum": 40.0, "description": "Initial plant age d_0 [days after transplanting]." }
+        }
+      }
+    },
+    "source_water": {
+      "$ref": "#/$defs/waterChemistrySpec"
+    },
+    "initial_solution": {
+      "$ref": "#/$defs/waterChemistrySpec"
+    },
+    "dosing_stocks": {
+      "type": "object",
+      "required": ["stock_a", "stock_b", "acid", "base"],
+      "additionalProperties": false,
+      "properties": {
+        "stock_a": { "$ref": "#/$defs/stockTankSpec" },
+        "stock_b": { "$ref": "#/$defs/stockTankSpec" },
+        "acid": { "$ref": "#/$defs/stockTankSpec" },
+        "base": { "$ref": "#/$defs/stockTankSpec" }
+      }
+    },
+    "sensors": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "attached_to_id", "accuracy", "drift_per_day"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/$defs/componentId" },
+          "kind": {
+            "type": "string",
+            "enum": ["EC", "pH", "T_w", "DO", "T_air", "RH", "CO2", "V_res", "RGB"],
+            "description": "Sensor modality s in S (Module 11). Note: Individual ions cannot be sensed."
+          },
+          "attached_to_id": { "$ref": "#/$defs/componentId", "description": "ID of the reservoir, channel, or enclosure this probe observes." },
+          "accuracy": { "type": "number", "minimum": 0.0, "description": "White-noise standard deviation sigma_s in modality units." },
+          "drift_per_day": { "type": "number", "description": "Linear calibration drift rate d_s [modality unit / day]." },
+          "dropout_prob": { "type": "number", "minimum": 0.0, "maximum": 1.0, "default": 0.0, "description": "Bernoulli packet dropout probability p_drop,s [0..1]." }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "componentId": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{1,63}$",
+      "description": "Unique identifier used by Three.js, validation errors, sensor readings, and ML alerts."
+    },
+    "waterChemistrySpec": {
+      "type": "object",
+      "required": ["profile"],
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "type": "string",
+          "enum": ["hoagland_lettuce_std", "ro_pure", "egypt_nile_fresh", "egypt_delta_brackish", "custom"],
+          "description": "Named water/nutrient preset so normal users never have to enter 10 ion molarities."
+        },
+        "alkalinity_meq_l": {
+          "type": "number",
+          "minimum": 0.0,
+          "description": "Optional override for titration alkalinity [Alk] [meq/L = eq/m^3]."
+        },
+        "ions_mmol_l": {
+          "$ref": "#/$defs/ionOverrides"
+        }
+      }
+    },
+    "stockTankSpec": {
+      "type": "object",
+      "required": ["id", "profile"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/componentId" },
+        "profile": {
+          "type": "string",
+          "enum": ["standard_part_a", "standard_part_b", "nitric_acid_0_5M", "potassium_hydroxide_0_5M", "custom"]
+        },
+        "net_alkalinity_meq_l": {
+          "type": "number",
+          "description": "Optional override for N_alk,stock,k (<0 for acid, >0 for base) [meq/L]."
+        },
+        "ions_mmol_l": {
+          "$ref": "#/$defs/ionOverrides"
+        }
+      }
+    },
+    "ionOverrides": {
+      "type": "object",
+      "description": "Optional scientific override for dissolved species concentrations [mmol/L = mol/m^3]. Never exposed in sensor readings.",
+      "additionalProperties": false,
+      "properties": {
+        "NO3": { "type": "number", "minimum": 0.0 },
+        "NH4": { "type": "number", "minimum": 0.0 },
+        "P_tot": { "type": "number", "minimum": 0.0 },
+        "K": { "type": "number", "minimum": 0.0 },
+        "Ca": { "type": "number", "minimum": 0.0 },
+        "Mg": { "type": "number", "minimum": 0.0 },
+        "SO4": { "type": "number", "minimum": 0.0 },
+        "Na": { "type": "number", "minimum": 0.0 },
+        "Cl": { "type": "number", "minimum": 0.0 },
+        "Fe": { "type": "number", "minimum": 0.0 }
+      }
+    }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0",
+  "name": "NASA OSD-723 NFT Lettuce System (16:8 LED, 28-Day Cycle)",
+  "location": {
+    "lat_deg": 28.5729,
+    "lon_deg": -80.6490,
+    "elevation_m": 3.0,
+    "start_doy": 100
+  },
+  "enclosure": {
+    "id": "enclosure-nasa",
+    "type": "indoor_LED",
+    "floor_area_m2": 1.20,
+    "air_volume_m3": 3.60,
+    "cover_transmittance": 0.95,
+    "vent_conductance_m_s": 0.020
+  },
+  "reservoir": {
+    "id": "reservoir-nasa",
+    "initial_volume_l": 120.0,
+    "max_volume_l": 150.0,
+    "surface_area_m2": 0.30,
+    "wall_conductance_w_m2_k": 2.80,
+    "placement": "indoor"
+  },
+  "pump": {
+    "id": "pump-nasa",
+    "rated_flow_l_min": 3.0,
+    "initial_health": 1.0
+  },
+  "aerator": {
+    "id": "aerator-nasa",
+    "air_flow_l_min": 4.0,
+    "otr_std_g_h": 2.2
+  },
+  "fans": {
+    "id": "fans-nasa",
+    "placement": "horizontal_canopy",
+    "airflow_m3_s": 0.12
+  },
+  "channels": [
+    {
+      "id": "ch-nasa-1",
+      "length_m": 1.6,
+      "width_m": 0.10,
+      "slope": 0.02,
+      "plant_spacing_m": 0.20,
+      "plants_per_channel": 8,
+      "initial_plant_age_days": 1.0
+    },
+    {
+      "id": "ch-nasa-2",
+      "length_m": 1.6,
+      "width_m": 0.10,
+      "slope": 0.02,
+      "plant_spacing_m": 0.20,
+      "plants_per_channel": 8,
+      "initial_plant_age_days": 1.0
+    }
+  ],
+  "source_water": {
+    "profile": "ro_pure"
+  },
+  "initial_solution": {
+    "profile": "hoagland_lettuce_std"
+  },
+  "dosing_stocks": {
+    "stock_a": { "id": "stock-a", "profile": "standard_part_a" },
+    "stock_b": { "id": "stock-b", "profile": "standard_part_b" },
+    "acid": { "id": "stock-acid", "profile": "nitric_acid_0_5M" },
+    "base": { "id": "stock-base", "profile": "potassium_hydroxide_0_5M" }
+  },
+  "sensors": [
+    { "id": "sen-ec-1", "kind": "EC", "attached_to_id": "reservoir-nasa", "accuracy": 0.02, "drift_per_day": 0.0 },
+    { "id": "sen-ph-1", "kind": "pH", "attached_to_id": "reservoir-nasa", "accuracy": 0.02, "drift_per_day": 0.0 },
+    { "id": "sen-tw-1", "kind": "T_w", "attached_to_id": "reservoir-nasa", "accuracy": 0.10, "drift_per_day": 0.0 }
+  ]
+}

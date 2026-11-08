@@ -1,0 +1,1979 @@
+/* ==========================================================================
+   Hydro Digital Twin — Clean Botanical SaaS Design System
+   Visual Identity: Clean Teal & Emerald Botanical SaaS
+   ========================================================================== */
+
+:root {
+  --nav-teal: #125B63;
+  --nav-teal-dark: #0d444a;
+  --nav-teal-light: #197883;
+  --nav-teal-subtle: rgba(18, 91, 99, 0.08);
+  
+  --bg-canvas: #F6F9F8;
+  --bg-card: #FFFFFF;
+  --bg-sidebar: #ECF1F0;
+  --bg-sidebar-card: #FFFFFF;
+  
+  --accent-emerald: #16B364;
+  --accent-emerald-soft: #E6F7EE;
+  --accent-emerald-dark: #108c4e;
+  
+  --text-primary: #125B63;
+  --text-dark: #0F3E44;
+  --text-secondary: #7A8B8E;
+  --text-muted: #9BA9AB;
+  
+  --status-critical: #EB4D3D;
+  --status-critical-soft: #FDE8E6;
+  --status-warning: #E67E22;
+  --status-warning-soft: #FDF2E9;
+  --status-info: #8C9BA0;
+  --status-info-soft: #EFF2F3;
+  
+  --border-subtle: rgba(18, 91, 99, 0.08);
+  --border-card: rgba(18, 91, 99, 0.09);
+  --border-active: #16B364;
+  
+  --shadow-card: 0 10px 30px rgba(18, 91, 99, 0.05);
+  --shadow-card-hover: 0 14px 34px rgba(18, 91, 99, 0.09);
+  --shadow-modal: 0 24px 60px rgba(18, 91, 99, 0.16);
+  --shadow-rail: 4px 0 20px rgba(18, 91, 99, 0.06);
+
+  --radius-outer: 24px;
+  --radius-card: 16px;
+  --radius-pill: 9999px;
+  --radius-sm: 8px;
+  
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #E6ECEB;
+  font-family: var(--font-sans);
+  color: var(--text-dark);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.tabular-nums {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   Outer Frame: 3-Column SaaS Architecture (24px border radius)
+   ========================================================================== */
+
+#app-root {
+  width: 100vw;
+  height: 100vh;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #E8EFEB;
+}
+
+.saas-frame {
+  width: 100%;
+  max-width: 1720px;
+  height: 100%;
+  max-height: 980px;
+  background-color: var(--bg-canvas);
+  border-radius: var(--radius-outer);
+  box-shadow: 0 20px 50px rgba(18, 91, 99, 0.12);
+  display: flex;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid rgba(18, 91, 99, 0.08);
+}
+
+/* ==========================================================================
+   Column 1: Left Vertical Icon Rail (64px width, #125B63)
+   ========================================================================== */
+
+.icon-rail {
+  width: 68px;
+  min-width: 68px;
+  background-color: var(--nav-teal);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 0 16px 0;
+  z-index: 20;
+  border-top-left-radius: var(--radius-outer);
+  border-bottom-left-radius: var(--radius-outer);
+  box-shadow: var(--shadow-rail);
+}
+
+.rail-top-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  gap: 22px;
+}
+
+.brand-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.brand-badge:hover {
+  background: rgba(255, 255, 255, 0.22);
+  transform: scale(1.05);
+}
+
+.brand-sprout-svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: var(--accent-emerald);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rail-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.rail-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.rail-btn svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  transition: stroke 0.2s ease;
+}
+
+.rail-btn:hover {
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.rail-btn.active {
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.rail-btn.active::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background-color: var(--accent-emerald);
+}
+
+/* Tooltip on rail hover */
+.rail-btn .tooltip {
+  position: absolute;
+  left: 62px;
+  background-color: var(--text-dark);
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: 6px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: all 0.15s ease;
+  z-index: 100;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+.rail-btn:hover .tooltip {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.rail-bottom-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.rail-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--accent-emerald);
+  box-shadow: 0 0 10px var(--accent-emerald);
+  animation: pulse-dot 2s infinite ease-in-out;
+}
+
+/* ==========================================================================
+   Column 2: Center Workspace (Header + View Area)
+   ========================================================================== */
+
+.center-workspace {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-canvas);
+  position: relative;
+}
+
+/* Top Persistent Header Bar */
+.center-header {
+  height: 72px;
+  min-height: 72px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--bg-card);
+  border-bottom: 1px solid var(--border-subtle);
+  z-index: 10;
+  gap: 16px;
+}
+
+.header-left {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 220px;
+}
+
+.header-view-title {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.header-view-subtitle {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* Header Center Controls: Season Picker + Time Bar */
+.header-center {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.season-picker-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.season-select {
+  appearance: none;
+  background-color: var(--bg-canvas);
+  border: 1px solid var(--border-card);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 30px 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(18, 91, 99, 0.04);
+}
+
+.season-select:hover, .season-select:focus {
+  border-color: var(--nav-teal);
+  outline: none;
+  background-color: #FFFFFF;
+}
+
+.season-select-chevron {
+  position: absolute;
+  right: 10px;
+  pointer-events: none;
+  width: 14px;
+  height: 14px;
+  stroke: var(--text-secondary);
+}
+
+.sim-time-bar {
+  display: flex;
+  align-items: center;
+  background-color: var(--bg-canvas);
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  padding: 4px 6px;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(18, 91, 99, 0.04);
+}
+
+.sim-clock-display {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: #FFFFFF;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.btn-ctrl {
+  background: #FFFFFF;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.btn-ctrl:hover {
+  background: var(--nav-teal);
+  color: #FFFFFF;
+  border-color: var(--nav-teal);
+}
+
+.btn-ctrl.active {
+  background: var(--nav-teal);
+  color: #FFFFFF;
+  border-color: var(--nav-teal);
+}
+
+.btn-ctrl:active {
+  transform: scale(0.97);
+}
+
+/* Header Right Pills */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ai-autopilot-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: var(--accent-emerald-soft);
+  border: 1px solid rgba(22, 179, 100, 0.25);
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-emerald-dark);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.ai-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--accent-emerald);
+  animation: pulse-dot 1.5s infinite;
+}
+
+.plc-guardian-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: #F0F7F6;
+  border: 1px solid rgba(18, 91, 99, 0.2);
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--nav-teal);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.plc-shield-icon {
+  width: 13px;
+  height: 13px;
+  stroke: var(--nav-teal);
+  stroke-width: 2;
+  fill: none;
+}
+
+/* Viewport / Center Scrollable Content */
+.center-content-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.center-content-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.center-content-scroll::-webkit-scrollbar-thumb {
+  background: rgba(18, 91, 99, 0.15);
+  border-radius: 3px;
+}
+
+/* Individual Views */
+.workspace-view {
+  display: none;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.workspace-view.active-view {
+  display: flex;
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Card Common Styles */
+.botanical-card {
+  background-color: var(--bg-card);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border-card);
+  box-shadow: var(--shadow-card);
+  padding: 18px 20px;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.botanical-card:hover {
+  box-shadow: var(--shadow-card-hover);
+}
+
+.card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.card-heading {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-subtext {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* ==========================================================================
+   VIEW 1: Farm Status (Executive Analytics, Dosing Pill Gauges & Splines)
+   ========================================================================== */
+
+/* Top Row: 3-Column Analytics Grid */
+.farm-status-top-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+/* 1. Left — Capacity & Harvest Readiness Donut Card */
+.harvest-readiness-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px 20px;
+}
+
+.kpi-counters-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.kpi-counter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kpi-counter-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kpi-counter-val {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--nav-teal);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.donut-chart-container {
+  position: relative;
+  width: 124px;
+  height: 124px;
+  margin: 4px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.donut-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.donut-center-label {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.donut-center-percent {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--nav-teal);
+  line-height: 1;
+}
+
+.donut-center-sub {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 3px;
+}
+
+.donut-legend-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
+.donut-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.legend-dot.healthy {
+  background-color: var(--accent-emerald);
+}
+
+.legend-dot.stressed {
+  background-color: #CBD5D5;
+}
+
+/* 2. Center — Autonomous AI Dosing & Reservoir Pill Gauges */
+.ai-pill-gauges-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px 20px;
+  position: relative;
+}
+
+.ai-status-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-emerald-dark);
+  background: var(--accent-emerald-soft);
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(22, 179, 100, 0.25);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.vertical-pills-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  padding: 6px 0 2px 0;
+  gap: 8px;
+}
+
+.vertical-pill-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  position: relative;
+}
+
+.vertical-pill-track {
+  width: 48px;
+  height: 130px;
+  border-radius: 16px;
+  background-color: #CBD5D5;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.09);
+  transition: box-shadow 0.3s ease;
+}
+
+.vertical-pill-track.pulsing {
+  box-shadow: 0 0 18px rgba(22, 179, 100, 0.8), inset 0 2px 5px rgba(0, 0, 0, 0.09);
+}
+
+.vertical-pill-fill {
+  width: 100%;
+  border-radius: 16px;
+  background-color: var(--accent-emerald);
+  transition: height 0.6s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s ease;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 8px;
+}
+
+.vertical-pill-fill.water {
+  background-color: #12828F;
+}
+
+.vertical-pill-fill.acid {
+  background-color: #E67E22;
+}
+
+.vertical-pill-pct {
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.vertical-pill-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.vertical-pill-badge {
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.floating-dose-callout {
+  position: absolute;
+  top: -30px;
+  background: var(--nav-teal);
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 15;
+  box-shadow: 0 4px 12px rgba(18, 91, 99, 0.25);
+}
+
+.floating-dose-callout::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 4px solid var(--nav-teal);
+}
+
+.floating-dose-callout.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 3. Right — Floating "Recent Alerts & AI Detections" Card */
+.alerts-detection-card {
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px;
+  height: 100%;
+}
+
+.alert-filter-tabs {
+  display: flex;
+  gap: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 10px;
+}
+
+.alert-tab {
+  background: none;
+  border: none;
+  padding: 4px 2px 7px 2px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s ease;
+}
+
+.alert-tab:hover {
+  color: var(--text-primary);
+}
+
+.alert-tab.active {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.alert-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--nav-teal);
+  border-radius: 2px;
+}
+
+.alerts-feed-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  max-height: 175px;
+}
+
+.alert-pill-expanded {
+  background-color: #EEF3F3;
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(18, 91, 99, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.alert-pill-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.alert-pill-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.alert-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.alert-status-dot.critical { background-color: var(--status-critical); }
+.alert-status-dot.warning { background-color: var(--status-warning); }
+.alert-status-dot.info { background-color: var(--status-info); }
+
+.alert-pill-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.alert-pill-time {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.alert-pill-desc {
+  font-size: 10px;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.alert-pill-compact {
+  background-color: #EEF3F3;
+  border-radius: 8px;
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid rgba(18, 91, 99, 0.05);
+  font-size: 10.5px;
+}
+
+/* ==========================================================================
+   Bottom Row: Charts & Live AI Command Ledger
+   ========================================================================== */
+
+.farm-status-bottom-grid {
+  display: grid;
+  grid-template-columns: 1.22fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.bottom-left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bar-chart-card {
+  padding: 16px 20px;
+}
+
+.chart-timeframe-picker select, .metric-selector-wrapper select {
+  appearance: none;
+  background-color: var(--bg-canvas);
+  border: 1px solid var(--border-card);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 22px 4px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23125B63' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+}
+
+.chart-timeframe-picker select:focus, .metric-selector-wrapper select:focus {
+  outline: none;
+  border-color: var(--nav-teal);
+}
+
+.dosing-bar-chart-wrap {
+  width: 100%;
+  height: 100px;
+  position: relative;
+}
+
+.svg-bar-chart {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.vitalities-card {
+  padding: 16px 20px;
+}
+
+.vitalities-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.vitality-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vitality-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.vitality-dot.teal { background-color: #125B63; }
+.vitality-dot.emerald { background-color: #16B364; }
+
+.vitalities-spline-wrap {
+  width: 100%;
+  height: 140px;
+  position: relative;
+}
+
+.svg-vitalities-chart {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Right Column: AI Autopilot & PLC Safety Ledger Table */
+.safety-ledger-card {
+  padding: 16px 20px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ledger-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 385px;
+}
+
+.ledger-table-wrap::-webkit-scrollbar {
+  width: 5px;
+}
+
+.ledger-table-wrap::-webkit-scrollbar-thumb {
+  background: rgba(18, 91, 99, 0.15);
+  border-radius: 3px;
+}
+
+.ledger-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.ledger-table th {
+  text-align: left;
+  padding: 8px 10px;
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border-subtle);
+  background: #FFFFFF;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.ledger-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(18, 91, 99, 0.04);
+  color: var(--text-dark);
+}
+
+.ledger-table tr:hover td {
+  background: rgba(18, 91, 99, 0.02);
+}
+
+/* Old KPI classes retained for compatibility */
+.kpi-row-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.kpi-card {
+  background: #FFFFFF;
+  border-radius: var(--radius-card);
+  padding: 16px 18px;
+  border: 1px solid var(--border-card);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 118px;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kpi-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kpi-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+}
+
+.kpi-badge.healthy {
+  background-color: var(--accent-emerald-soft);
+  color: var(--accent-emerald-dark);
+}
+
+.kpi-badge.alert {
+  background-color: var(--status-critical-soft);
+  color: var(--status-critical);
+}
+
+.kpi-badge.warn {
+  background-color: var(--status-warning-soft);
+  color: var(--status-warning);
+}
+
+.kpi-value-block {
+  margin-top: 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.kpi-main-num {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.kpi-unit {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.kpi-sub-row {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Dosing Skid Pill Gauges Block */
+.dosing-pills-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+}
+
+.dosing-pill-card {
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.dosing-pill-card:hover {
+  background: #FFFFFF;
+  border-color: rgba(22, 179, 100, 0.4);
+}
+
+.dosing-pill-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dosing-stock-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.dosing-active-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-emerald-soft);
+  color: var(--accent-emerald-dark);
+}
+
+.pill-bar-track {
+  width: 100%;
+  height: 8px;
+  background-color: rgba(18, 91, 99, 0.08);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  position: relative;
+}
+
+.pill-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background-color: var(--accent-emerald);
+  transition: width 0.4s ease;
+}
+
+.pill-bar-fill.acid { background-color: #E67E22; }
+.pill-bar-fill.base { background-color: #3498DB; }
+.pill-bar-fill.water { background-color: #1ABC9C; }
+
+.dosing-pill-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+/* Charts & Telemetry Splines */
+.telemetry-splines-container {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+
+.spline-chart-wrap {
+  position: relative;
+  width: 100%;
+  height: 220px;
+}
+
+.svg-spline-chart {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Audit / PLC Activity Log preview */
+.audit-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.audit-log-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--bg-canvas);
+  border-radius: 8px;
+  font-size: 11px;
+  border: 1px solid var(--border-subtle);
+}
+
+.audit-action-text {
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.audit-badge {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+}
+
+.audit-badge.applied {
+  background: var(--accent-emerald-soft);
+  color: var(--accent-emerald-dark);
+}
+
+.audit-badge.rejected {
+  background: var(--status-critical-soft);
+  color: var(--status-critical);
+}
+
+/* ==========================================================================
+   Column 3: Right Inspector Panel — "Quick Details" (310px width, #ECF1F0)
+   ========================================================================== */
+
+.quick-details-panel {
+  width: 310px;
+  min-width: 310px;
+  background-color: var(--bg-sidebar);
+  border-left: 1px solid var(--border-subtle);
+  border-top-right-radius: var(--radius-outer);
+  border-bottom-right-radius: var(--radius-outer);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px 18px 16px 18px;
+  gap: 14px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.quick-details-panel::-webkit-scrollbar {
+  width: 4px;
+}
+.quick-details-panel::-webkit-scrollbar-thumb {
+  background: rgba(18, 91, 99, 0.15);
+  border-radius: 2px;
+}
+
+.quick-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.quick-details-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.quick-details-chip {
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(18, 91, 99, 0.08);
+  color: var(--text-primary);
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+}
+
+/* 1. Alerts Summary Block (Last 24 hours) */
+.alerts-summary-block {
+  background-color: #FFFFFF;
+  border-radius: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-card);
+  box-shadow: 0 4px 14px rgba(18, 91, 99, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.alerts-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.alert-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(18, 91, 99, 0.04);
+}
+
+.alert-row:last-child {
+  border-bottom: none;
+  padding-bottom: 2px;
+}
+
+/* Circular colored status icon badges */
+.status-circle-icon {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 11px;
+  color: #FFFFFF;
+  line-height: 1;
+}
+
+.status-circle-icon.critical {
+  background-color: var(--status-critical);
+  box-shadow: 0 2px 6px rgba(235, 77, 61, 0.35);
+}
+
+.status-circle-icon.warning {
+  background-color: var(--status-warning);
+  box-shadow: 0 2px 6px rgba(230, 126, 34, 0.35);
+}
+
+.status-circle-icon.info {
+  background-color: var(--status-info);
+  box-shadow: 0 2px 6px rgba(140, 155, 160, 0.25);
+}
+
+.alert-row-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.alert-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.alert-row-type {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.alert-row-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.alert-row-headline {
+  font-size: 10px;
+  color: var(--text-secondary);
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* 2. Active Controller & Season Info */
+.controller-info-block {
+  background-color: #FFFFFF;
+  border-radius: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-card);
+  box-shadow: 0 4px 14px rgba(18, 91, 99, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.info-kv-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.info-kv-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.info-kv-value {
+  color: var(--text-primary);
+  font-weight: 600;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 3. Plants & Harvest Readiness (Circular SVG Ring) */
+.plants-harvest-block {
+  background-color: #FFFFFF;
+  border-radius: 14px;
+  padding: 14px;
+  border: 1px solid var(--border-card);
+  box-shadow: 0 4px 14px rgba(18, 91, 99, 0.03);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.progress-ring-container {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  min-width: 64px;
+}
+
+.progress-ring-svg {
+  transform: rotate(-90deg);
+  width: 64px;
+  height: 64px;
+}
+
+.progress-ring-bg {
+  stroke: rgba(22, 179, 100, 0.15);
+}
+
+.progress-ring-circle {
+  stroke: var(--accent-emerald);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s ease;
+}
+
+.progress-ring-center-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 22px;
+}
+
+.plants-harvest-details {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.plants-total-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.harvest-day-eta {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-emerald-dark);
+}
+
+.growth-stage-tag {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+/* 4. Live Hydroponic Telemetry Table */
+.telemetry-table-block {
+  background-color: #FFFFFF;
+  border-radius: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-card);
+  box-shadow: 0 4px 14px rgba(18, 91, 99, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.telemetry-table-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 2px;
+}
+
+.telemetry-table-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.telemetry-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(18, 91, 99, 0.04);
+  font-size: 11px;
+}
+
+.telemetry-row:last-child {
+  border-bottom: none;
+}
+
+.telemetry-name {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.telemetry-val {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+/* 5. Bottom Action Button: Challenge AI (Inject Fault) */
+.quick-details-bottom {
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+.btn-challenge-ai {
+  width: 100%;
+  background: var(--nav-teal);
+  color: #FFFFFF;
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 12px 16px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(18, 91, 99, 0.25);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-challenge-ai:hover {
+  background: var(--nav-teal-light);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(18, 91, 99, 0.35);
+}
+
+.btn-challenge-ai:active {
+  transform: translateY(0);
+}
+
+/* ==========================================================================
+   Modals & Popovers (Fault Injection & Layout Builder)
+   ========================================================================== */
+
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 62, 68, 0.45);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-backdrop.open {
+  display: flex;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-card {
+  background: #FFFFFF;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 580px;
+  box-shadow: var(--shadow-modal);
+  border: 1px solid var(--border-card);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  padding: 18px 24px;
+  background: var(--bg-canvas);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.modal-close-btn:hover {
+  background: rgba(18, 91, 99, 0.08);
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.modal-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.fault-grid-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.fault-option-btn {
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.fault-option-btn:hover {
+  border-color: var(--nav-teal);
+  background: #FFFFFF;
+}
+
+.fault-option-btn.selected {
+  border-color: var(--status-critical);
+  background: var(--status-critical-soft);
+}
+
+.fault-option-btn .fault-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.fault-option-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fault-option-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.fault-option-desc {
+  font-size: 10px;
+  color: var(--text-secondary);
+  line-height: 1.3;
+}
+
+.modal-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.modal-slider {
+  flex: 1;
+  accent-color: var(--nav-teal);
+}
+
+.modal-slider-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  min-width: 48px;
+  text-align: right;
+}
+
+.active-faults-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.active-fault-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--status-critical-soft);
+  color: var(--status-critical);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.btn-clear-single {
+  background: transparent;
+  border: 1px solid var(--status-critical);
+  color: var(--status-critical);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.btn-clear-single:hover {
+  background: var(--status-critical);
+  color: #FFFFFF;
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  background: var(--bg-canvas);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn-secondary {
+  background: #FFFFFF;
+  border: 1px solid var(--border-card);
+  color: var(--text-primary);
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primary-action {
+  background: var(--status-critical);
+  border: none;
+  color: #FFFFFF;
+  padding: 8px 18px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(235, 77, 61, 0.3);
+}
+
+.btn-primary-action:hover {
+  opacity: 0.92;
+}
+
+/* ==========================================================================
+   2.5D SVG Isometric & Matrix Styling (Ready for Views 2, 3, 4, 5)
+   ========================================================================== */
+
+/* 2D Matrix Grid */
+.matrix-grid-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.gully-card-cell {
+  background: #FFFFFF;
+  border: 1px solid var(--border-card);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.gully-card-cell:hover {
+  border-color: var(--accent-emerald);
+  box-shadow: 0 8px 24px rgba(22, 179, 100, 0.1);
+  transform: translateY(-2px);
+}
+
+.gully-cell-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.gully-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.gully-ports-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.port-sprout-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-emerald-soft);
+  border: 1px solid rgba(22, 179, 100, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+}
+
+/* 2.5D Isometric Rack Overview SVG */
+.isometric-stage {
+  width: 100%;
+  height: 480px;
+  background: #FFFFFF;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border-card);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.iso-rack-svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Channel Deep Dive Growth Timeline */
+.growth-timeline-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.timeline-stage-card {
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.timeline-stage-card.current {
+  background: #FFFFFF;
+  border-color: var(--accent-emerald);
+  box-shadow: 0 4px 16px rgba(22, 179, 100, 0.12);
+}
+
+.timeline-sprout-icon {
+  font-size: 24px;
+}
+
+/* Judge / Proof View Comparison Table */
+.proof-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.proof-table th {
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--bg-canvas);
+  color: var(--text-secondary);
+  font-weight: 700;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.proof-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-dark);
+}
+
+.proof-table tr:hover td {
+  background: rgba(18, 91, 99, 0.02);
+}
+
+/* Animations */
+@keyframes pulse-dot {
+  0% { transform: scale(0.95); opacity: 0.7; }
+  50% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.7; }
+}

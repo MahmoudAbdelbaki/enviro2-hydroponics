@@ -1,0 +1,29 @@
+column name,description
+source_name,Unique identifier - identical to sample name
+sample_name,Coded sample name - unique identifier
+characteristics_organism,Organism sampled
+characteristics_host_organism,Host Plant - in this case all 309 samples are lettuce
+characteristics_cultivar,Type of lettuce - in this case all 309 samples are outredgeous (red romaine)
+characteristics_genotype,Genotype - Wild Type (not GMO)
+factor_value_organism_part,"Part of lettuce sampled (root, shoot, or irrigation water)"
+factor_value_growth_time,"References growth time of the plant at time sample was taken (0 days, 7 days, 14 days, 28 days)"
+unit_factor_value_organism_part,Unit related to Factor Value[Growth Time] - measured in days in this study
+factor_value_treatment,"References how many ppb of ionic silver the sample was given (also corresponds to treatment group): 0 ppb (control), 31 ppb (Group 1), 125 ppb (Group 2), 500 ppb (Group 3)"
+unit_factor_value_treatment,Unit related to Factor Value[Treatment] - measured in parts per billion (ppb)
+factor_value_growth_medium,"References growth medium of plant, rockwool cube (hydroponic system) or amended autoclaved arcillite (clay-based growth medium)"
+parameter_value_growth_environment,References where study took place - Earth Surface
+parameter_value_mean_growth_temperature,References growth temp of sample env - always set to 25 degrees C to mimic ISS conditions
+unit_parameter_value_mean_growth_temperature,Unit related to Parameter Value[Mean Growth Temperature] - always set to degrees Celsius
+parameter_value_container,"References type of container plant was housed in - square plastic pots (9 cm tall, 10.2 cm width) for arcillite system, and not applicable for hydroponic setup"
+parameter_value_number_of_seeds_per_container,"References number of seeds per container - 4 for arcillite pots, 2 for hydroponic rockwool cubes"
+parameter_value_light_source,References type of light source used in environment - Light Emitting Diode Device to mimic ISS conditions
+parameter_value_light_intensity,References light intensity - always set to 300 micromole per square meter per second to mimic ISS conditions
+unit_parameter_value_light_intensity,Unit related to Parameter Value[Light Intensity] - always set to micromole per square meter per second
+parameter_value_light_cycle,References light cycle used during experiment - 16:8 hours of light followed by 8 hours of dark (16:8 light:dark)
+unit_parameter_value_light_cycle,Unit related to Parameter Value[light cycle] - always set to hour
+parameter_value_hardware,References hardware setup used - either Nutrient Film Technique (NFT) hydroponic system or NA for arcillite-based samples
+parameter_value_age_at_sample_harvest,"References age of sample at harvest - 0, 7, 14, 21, or 28 days"
+unit_parameter_value_age_at_sample_harvest,Unit related to Parameter Value[Age at sample harvest] - always days
+parameter_value_sample_preservation_method,References how samples were preserved - all were preserved in Liquid Nitrogen
+parameter_value_sample_storage_temperature,References what temperature preserved samples were stored at - always set to -80 degrees Celsius (-80)
+unit_parameter_value_sample_storage_temperature,Unit related to Parameter Value[Sample Storage Temperature] - always set to degrees Celsius

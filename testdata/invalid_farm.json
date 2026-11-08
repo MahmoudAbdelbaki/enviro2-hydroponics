@@ -1,0 +1,85 @@
+{
+  "schema_version": "1.0",
+  "name": "Broken Demo Farm (Act 1 Validation Showcase)",
+  "location": {
+    "lat_deg": 30.0444,
+    "lon_deg": 31.2357,
+    "elevation_m": 23.0,
+    "start_doy": 95
+  },
+  "enclosure": {
+    "id": "enclosure-1",
+    "type": "greenhouse",
+    "floor_area_m2": 1.5,
+    "air_volume_m3": 4.5,
+    "cover_transmittance": 0.75,
+    "vent_conductance_m_s": 0.015
+  },
+  "reservoir": {
+    "id": "reservoir-1",
+    "initial_volume_l": 250.0,
+    "max_volume_l": 180.0,
+    "surface_area_m2": 0.5,
+    "wall_conductance_w_m2_k": 2.5,
+    "placement": "indoor"
+  },
+  "pump": {
+    "id": "pump-1",
+    "rated_flow_l_min": 4.5,
+    "initial_health": 1.0
+  },
+  "aerator": {
+    "id": "aerator-1",
+    "air_flow_l_min": 5.0,
+    "otr_std_g_h": 2.7
+  },
+  "fans": {
+    "id": "fans-1",
+    "placement": "horizontal_canopy",
+    "airflow_m3_s": 0.15
+  },
+  "channels": [
+    {
+      "id": "ch-1",
+      "length_m": 2.0,
+      "width_m": 0.1,
+      "slope": 0.02,
+      "plant_spacing_m": 0.2,
+      "plants_per_channel": 8,
+      "initial_plant_age_days": 5.0
+    },
+    {
+      "id": "ch-2",
+      "length_m": 2.0,
+      "width_m": 0.1,
+      "slope": 0.09,
+      "plant_spacing_m": 0.2,
+      "plants_per_channel": 8,
+      "initial_plant_age_days": 5.0
+    },
+    {
+      "id": "ch-3",
+      "length_m": 2.0,
+      "width_m": 0.1,
+      "slope": 0.02,
+      "plant_spacing_m": 0.2,
+      "plants_per_channel": 8,
+      "initial_plant_age_days": 5.0
+    }
+  ],
+  "source_water": {
+    "profile": "egypt_nile_fresh"
+  },
+  "initial_solution": {
+    "profile": "hoagland_lettuce_std"
+  },
+  "dosing_stocks": {
+    "stock_a": { "id": "stock-a", "profile": "standard_part_a" },
+    "stock_b": { "id": "stock-b", "profile": "standard_part_b" },
+    "acid": { "id": "stock-acid", "profile": "nitric_acid_0_5M" },
+    "base": { "id": "stock-base", "profile": "potassium_hydroxide_0_5M" }
+  },
+  "sensors": [
+    { "id": "sen-ec-1", "kind": "EC", "attached_to_id": "reservoir-1", "accuracy": 0.02, "drift_per_day": 0.002 }
+  ]
+}

@@ -1,0 +1,118 @@
+{
+  "schema_version": "1.0",
+  "name": "AASTMT Egypt HydroGrowNet NFT \u2014 EXP.2 (Apr\u2013May 2024, Optimal)",
+  "location": {
+    "lat_deg": 31.2001,
+    "lon_deg": 29.9187,
+    "elevation_m": 7.0,
+    "start_doy": 106
+  },
+  "enclosure": {
+    "id": "enc-1",
+    "type": "greenhouse",
+    "floor_area_m2": 0.96,
+    "air_volume_m3": 2.88,
+    "cover_transmittance": 0.56,
+    "vent_conductance_m_s": 0.035
+  },
+  "reservoir": {
+    "id": "res-1",
+    "initial_volume_l": 100.0,
+    "max_volume_l": 120.0,
+    "surface_area_m2": 0.25,
+    "wall_conductance_w_m2_k": 2.5,
+    "placement": "indoor"
+  },
+  "pump": {
+    "id": "pump-1",
+    "rated_flow_l_min": 3.0,
+    "initial_health": 1.0
+  },
+  "aerator": {
+    "id": "aer-1",
+    "air_flow_l_min": 4.0,
+    "otr_std_g_h": 2.5
+  },
+  "fans": {
+    "id": "fans-1",
+    "placement": "horizontal_canopy",
+    "airflow_m3_s": 0.12
+  },
+  "channels": [
+    {
+      "id": "ch-1",
+      "length_m": 1.5,
+      "width_m": 0.1,
+      "slope": 0.02,
+      "plant_spacing_m": 0.22,
+      "plants_per_channel": 6,
+      "initial_plant_age_days": 2.0
+    },
+    {
+      "id": "ch-2",
+      "length_m": 1.5,
+      "width_m": 0.1,
+      "slope": 0.02,
+      "plant_spacing_m": 0.22,
+      "plants_per_channel": 6,
+      "initial_plant_age_days": 2.0
+    }
+  ],
+  "source_water": {
+    "profile": "egypt_nile_fresh",
+    "alkalinity_meq_l": 0.65
+  },
+  "initial_solution": {
+    "profile": "hoagland_lettuce_std",
+    "alkalinity_meq_l": 0.65,
+    "ions_mmol_l": {
+      "NO3": 14.12,
+      "P_tot": 1.93,
+      "K": 7.7,
+      "Ca": 3.85,
+      "Mg": 1.28,
+      "SO4": 1.28
+    }
+  },
+  "dosing_stocks": {
+    "stock_a": {
+      "id": "stock-a",
+      "profile": "standard_part_a"
+    },
+    "stock_b": {
+      "id": "stock-b",
+      "profile": "standard_part_b"
+    },
+    "acid": {
+      "id": "stock-acid",
+      "profile": "nitric_acid_0_5M"
+    },
+    "base": {
+      "id": "stock-base",
+      "profile": "potassium_hydroxide_0_5M"
+    }
+  },
+  "sensors": [
+    {
+      "id": "sen-ec-1",
+      "kind": "EC",
+      "attached_to_id": "res-1",
+      "accuracy": 0.02,
+      "drift_per_day": 0.0
+    },
+    {
+      "id": "sen-ph-1",
+      "kind": "pH",
+      "attached_to_id": "res-1",
+      "accuracy": 0.02,
+      "drift_per_day": 0.0
+    },
+    {
+      "id": "sen-tw-1",
+      "kind": "T_w",
+      "attached_to_id": "res-1",
+      "accuracy": 0.1,
+      "drift_per_day": 0.0
+    }
+  ]
+}

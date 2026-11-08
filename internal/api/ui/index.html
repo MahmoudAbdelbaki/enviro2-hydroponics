@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hydro — NFT Lettuce Digital Twin Control Center</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #131b31;
+      --panel-alt: #192340;
+      --border: #26355d;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --good: #10b981;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+      --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.45;
+      padding-bottom: 40px;
+    }
+    header {
+      background: #0f172a;
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 16px;
+    }
+    .badge {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge.good { background: rgba(16, 185, 129, 0.15); color: var(--good); border-color: rgba(16, 185, 129, 0.4); }
+    .badge.bad { background: rgba(239, 68, 68, 0.15); color: var(--bad); border-color: rgba(239, 68, 68, 0.4); }
+    .badge.warn { background: rgba(245, 158, 11, 0.15); color: var(--warn); border-color: rgba(245, 158, 11, 0.4); }
+
+    .top-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .container {
+      max-width: 1560px;
+      margin: 16px auto;
+      padding: 0 16px;
+      display: grid;
+      grid-template-columns: 380px 1fr 410px;
+      gap: 16px;
+    }
+    @media (max-width: 1280px) {
+      .container { grid-template-columns: 1fr; }
+    }
+    .col { display: flex; flex-direction: column; gap: 16px; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .card-title {
+      font-weight: 600;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+    }
+    button {
+      background: var(--panel-alt);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 11px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    button:hover { border-color: var(--accent); background: #223056; }
+    button.primary { background: #0284c7; border-color: #38bdf8; color: #fff; }
+    button.primary:hover { background: #0369a1; }
+    button.success { background: #059669; border-color: #10b981; color: #fff; }
+    button.success:hover { background: #047857; }
+    button.danger { background: #dc2626; border-color: #ef4444; color: #fff; }
+    button.danger:hover { background: #b91c1c; }
+    button.warn { background: #d97706; border-color: #f59e0b; color: #fff; }
+
+    input, select, textarea {
+      background: #090d1a;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 12px;
+      font-family: var(--font);
+      width: 100%;
+    }
+    textarea {
+      font-family: var(--mono);
+      font-size: 11px;
+      resize: vertical;
+    }
+    label {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 3px;
+    }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+
+    .metric-box {
+      background: var(--panel-alt);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .metric-label { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; }
+    .metric-val { font-size: 18px; font-weight: 700; font-family: var(--mono); margin-top: 2px; }
+    .metric-unit { font-size: 11px; color: var(--muted); font-weight: 400; }
+
+    /* Interactive Farm Schematic Diagram */
+    .schematic-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      padding: 10px;
+      background: #090d1a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .comp-node {
+      border: 1.5px solid #2e4272;
+      background: #131c36;
+      border-radius: 7px;
+      padding: 8px;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .comp-node .cid { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--accent); }
+    .comp-node .ckind { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    .comp-node.error {
+      border-color: var(--bad);
+      background: rgba(239, 68, 68, 0.22);
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.45);
+    }
+    .comp-node.error .cid { color: #fca5a5; }
+    .comp-node.fault {
+      border-color: var(--warn);
+      background: rgba(245, 158, 11, 0.2);
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
+    }
+
+    .log-list {
+      max-height: 220px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+    }
+    .log-item {
+      background: #090d1a;
+      border-left: 3px solid var(--accent);
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+    .log-item.good { border-left-color: var(--good); }
+    .log-item.bad { border-left-color: var(--bad); }
+    .log-item.warn { border-left-color: var(--warn); }
+
+    pre.json-out {
+      background: #090d1a;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      max-height: 190px;
+      overflow: auto;
+      color: #cbd5e1;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span>🌱 Hydro NFT Digital Twin Control Center</span>
+    <span class="badge" id="hdrSimStatus">No Active Sim</span>
+    <span class="badge good" id="hdrSimTime">t = 0s (Day 0.00)</span>
+  </div>
+  <div class="top-controls">
+    <label style="margin:0; display:inline;">ML Bearer Key:</label>
+    <input type="text" id="mlApiKey" value="dev-ml-secret-key" style="width:170px;" />
+    <label style="margin:0; display:inline;">Active Sim:</label>
+    <select id="simSelector" style="width:240px;" onchange="onSelectSim()"></select>
+    <button onclick="refreshAll()">↻ Refresh</button>
+  </div>
+</header>
+
+<div class="container">
+  <!-- LEFT COLUMN: FARM BUILDER, VALIDATOR & FAULT INJECTION -->
+  <div class="col">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">1. Farm Builder & 3D Validator</span>
+        <div class="row">
+          <button onclick="loadPresetFarm('valid')">Valid Preset</button>
+          <button class="warn" onclick="loadPresetFarm('invalid')">Broken Preset (422)</button>
+        </div>
+      </div>
+      <div class="row" style="margin-bottom:8px;">
+        <select id="farmSelector" style="flex:1;" onchange="onSelectFarm()"></select>
+        <button class="success" onclick="startSimFromSelectedFarm()">▶ Start New Sim</button>
+      </div>
+      <label>Farm JSON Specification (Every component has a 3D <code>id</code>):</label>
+      <textarea id="farmJsonInput" rows="11"></textarea>
+      <div class="row" style="margin-top:8px;">
+        <button onclick="validateFarmJson()">✓ Validate JSON</button>
+        <button class="primary" onclick="createFarmAndStartSim()">+ Save Farm & Launch Sim</button>
+      </div>
+      <div id="validationFeedback" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">3. Fault Injection (Module 12)</span>
+        <button onclick="clearAllFaults()">Clear All</button>
+      </div>
+      <div class="grid-2" style="margin-bottom:8px;">
+        <div>
+          <label>Fault Kind</label>
+          <select id="faultKind" onchange="updateFaultDefaults()">
+            <option value="aeration_loss">aeration_loss (DO drop)</option>
+            <option value="pump_degradation">pump_degradation (Flow drop)</option>
+            <option value="heat_wave">heat_wave (+°C outdoor)</option>
+            <option value="reservoir_leak">reservoir_leak (m² orifice)</option>
+            <option value="nutrient_imbalance">nutrient_imbalance (Stock A skew)</option>
+            <option value="probe_drift">probe_drift (Sensor bias)</option>
+          </select>
+        </div>
+        <div>
+          <label>Target Component ID</label>
+          <input type="text" id="faultTarget" value="aerator-1" />
+        </div>
+      </div>
+      <div class="grid-2" style="margin-bottom:8px;">
+        <div>
+          <label>Intensity</label>
+          <input type="number" id="faultIntensity" step="0.01" value="0.85" />
+        </div>
+        <div>
+          <label>Trigger At Sim Sec</label>
+          <input type="number" id="faultTriggerSec" step="60" value="0" />
+        </div>
+      </div>
+      <div class="row">
+        <button class="danger" onclick="injectFault(false)">⚡ Inject Fault</button>
+        <button onclick="injectFault(true)">Clear This Fault</button>
+      </div>
+      <div id="activeFaultsList" class="log-list" style="margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <!-- CENTER COLUMN: CLOCK CONTROLS, 3D COMPONENT MAP, SENSORS & GROUND TRUTH -->
+  <div class="col">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">2. Simulation Clock & Fast-Forward</span>
+        <span id="clockModeBadge" class="badge">paused</span>
+      </div>
+      <div class="row" style="justify-content:space-between; margin-bottom:10px;">
+        <div class="row">
+          <button id="btnToggleClock" class="success" onclick="toggleClock()">▶ Run Live Clock</button>
+          <label style="margin:0;">Speed:</label>
+          <select id="clockSpeed" style="width:95px;" onchange="updateClockSpeed()">
+            <option value="1">1x (Real)</option>
+            <option value="60" selected>60x</option>
+            <option value="300">300x</option>
+            <option value="1800">1800x</option>
+          </select>
+        </div>
+        <div class="row">
+          <button class="primary" onclick="advanceSteps(1)">+1 Step (5m)</button>
+          <button class="primary" onclick="advanceSteps(12)">+1 Hr</button>
+          <button class="primary" onclick="advanceSteps(72)">+6 Hr</button>
+          <button class="primary" onclick="advanceSteps(288)">+1 Day</button>
+        </div>
+      </div>
+      <div class="grid-4">
+        <div class="metric-box">
+          <div class="metric-label"><span>Tick Index</span></div>
+          <div class="metric-val" id="statTick">0</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label"><span>Sim Days</span></div>
+          <div class="metric-val"><span id="statDays">0.00</span> <span class="metric-unit">d</span></div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label"><span>Step Size</span></div>
+          <div class="metric-val"><span id="statStep">300</span> <span class="metric-unit">s</span></div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label"><span>Dropped Batches</span></div>
+          <div class="metric-val" id="statDropped">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">3D Component Map (Highlights Validation Errors & Active Faults)</span>
+        <span style="font-size:11px; color:var(--muted);">Red = Validation Error / Critical Alert | Amber = Active Fault</span>
+      </div>
+      <div class="schematic-grid" id="componentMap">
+        <div class="comp-node" data-cid="enclosure-1"><div class="cid">enclosure-1</div><div class="ckind">Greenhouse</div></div>
+        <div class="comp-node" data-cid="reservoir-1"><div class="cid">reservoir-1</div><div class="ckind">250L Tank</div></div>
+        <div class="comp-node" data-cid="pump-1"><div class="cid">pump-1</div><div class="ckind">Main Pump</div></div>
+        <div class="comp-node" data-cid="aerator-1"><div class="cid">aerator-1</div><div class="ckind">Air Stone</div></div>
+        <div class="comp-node" data-cid="ch-1"><div class="cid">ch-1</div><div class="ckind">NFT Gully 1</div></div>
+        <div class="comp-node" data-cid="ch-2"><div class="cid">ch-2</div><div class="ckind">NFT Gully 2</div></div>
+        <div class="comp-node" data-cid="ch-3"><div class="cid">ch-3</div><div class="ckind">NFT Gully 3</div></div>
+        <div class="comp-node" data-cid="fans-1"><div class="cid">fans-1</div><div class="ckind">Canopy Fans</div></div>
+        <div class="comp-node" data-cid="stock-a"><div class="cid">stock-a</div><div class="ckind">Ca/NO3/Fe</div></div>
+        <div class="comp-node" data-cid="stock-b"><div class="cid">stock-b</div><div class="ckind">K/P/Mg/SO4</div></div>
+        <div class="comp-node" data-cid="stock-acid"><div class="cid">stock-acid</div><div class="ckind">0.5M HNO3</div></div>
+        <div class="comp-node" data-cid="stock-base"><div class="cid">stock-base</div><div class="ckind">0.5M KOH</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Noisy Bulk Sensor Readings (Module 11 — Exposed to ML & Frontend)</span>
+        <span class="badge">Zero ISEs</span>
+      </div>
+      <div class="grid-4" id="sensorCards">
+        <div class="metric-box"><div class="metric-label"><span>EC (sen-ec-1)</span></div><div class="metric-val" id="sen-EC">--</div></div>
+        <div class="metric-box"><div class="metric-label"><span>pH (sen-ph-1)</span></div><div class="metric-val" id="sen-pH">--</div></div>
+        <div class="metric-box"><div class="metric-label"><span>DO (sen-do-1)</span></div><div class="metric-val" id="sen-DO">--</div></div>
+        <div class="metric-box"><div class="metric-label"><span>V_res (sen-vres-1)</span></div><div class="metric-val" id="sen-V_res">--</div></div>
+        <div class="metric-box"><div class="metric-label"><span>T_w (sen-tw-1)</span></div><div class="metric-val" id="sen-T_w">--</div></div>
+        <div class="metric-box"><div class="metric-label"><span>T_air (sen-tair-1)</span></div><div class="metric-val" id="sen-T_air">--</div></div>
+        <div class="metric-box"><div class="metric-label"><span>RH (sen-rh-1)</span></div><div class="metric-val" id="sen-RH">--</div></div>
+        <div class="metric-box"><div class="metric-label"><span>Canopy RGB</span></div><div class="metric-val" id="sen-RGB">--</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Operator Ground-Truth State (Crop Biomass & Hidden 10 Ions)</span>
+        <span class="badge warn">Operator / Offline Training Only</span>
+      </div>
+      <div class="grid-4" style="margin-bottom:10px;">
+        <div class="metric-box"><div class="metric-label"><span>Shoot Fresh Wt</span></div><div class="metric-val"><span id="gtShootFW">--</span> <span class="metric-unit">g/pl</span></div></div>
+        <div class="metric-box"><div class="metric-label"><span>Shoot Dry Wt</span></div><div class="metric-val"><span id="gtShootDW">--</span> <span class="metric-unit">g/pl</span></div></div>
+        <div class="metric-box"><div class="metric-label"><span>Root Zone Stress</span></div><div class="metric-val" id="gtStress">--</div></div>
+        <div class="metric-box"><div class="metric-label"><span>Film Depth / τ</span></div><div class="metric-val"><span id="gtFilm">--</span> <span class="metric-unit">mm</span></div></div>
+      </div>
+      <div class="grid-4" id="ionGrid"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT COLUMN: ML ACTUATION, PLC SAFETY GUARDIAN, ALERTS & MCP PLAYGROUND -->
+  <div class="col">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">4. ML Actuation & PLC Safety Guardian</span>
+        <span class="badge">5-Rule Interlock</span>
+      </div>
+      <div class="row" style="margin-bottom:8px;">
+        <button class="success" onclick="sendPresetCommand('safe_dose')">✓ Safe Nutrient Dose</button>
+        <button class="danger" onclick="sendPresetCommand('unsafe_acid')">✗ Unsafe Acid Dump (422)</button>
+        <button class="warn" onclick="sendPresetCommand('overflow')">✗ Tank Overflow (422)</button>
+      </div>
+      <div class="grid-2" style="margin-bottom:8px;">
+        <div>
+          <label>Action</label>
+          <select id="cmdAction">
+            <option value="dose">dose</option>
+            <option value="refill_water">refill_water</option>
+            <option value="set_pump_throttle">set_pump_throttle</option>
+            <option value="set_aerator_throttle">set_aerator_throttle</option>
+            <option value="set_fan_throttle">set_fan_throttle</option>
+          </select>
+        </div>
+        <div>
+          <label>Target Component ID</label>
+          <input type="text" id="cmdTarget" value="reservoir-1" />
+        </div>
+      </div>
+      <div class="grid-4" style="margin-bottom:8px;">
+        <div><label>Stock A (mL)</label><input type="number" id="cmdStockA" value="15" /></div>
+        <div><label>Stock B (mL)</label><input type="number" id="cmdStockB" value="15" /></div>
+        <div><label>Acid (mL)</label><input type="number" id="cmdAcid" value="0" /></div>
+        <div><label>Base (mL)</label><input type="number" id="cmdBase" value="0" /></div>
+      </div>
+      <div class="grid-2" style="margin-bottom:8px;">
+        <div><label>Refill Water (L)</label><input type="number" id="cmdRefill" value="0" /></div>
+        <div><label>Throttle (0.0 - 1.0)</label><input type="number" id="cmdThrottle" step="0.1" placeholder="Optional" /></div>
+      </div>
+      <div style="margin-bottom:8px;">
+        <label>Reason (Audit Trail)</label>
+        <input type="text" id="cmdReason" value="Manual operator / ML control adjustment" />
+      </div>
+      <button class="primary" style="width:100%;" onclick="submitCustomCommand()">Send Actuation Command</button>
+      <div id="cmdAuditList" class="log-list" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">ML Anomaly Alerts</span>
+        <button onclick="sendTestAlert()">+ Raise Alert</button>
+      </div>
+      <div id="alertsList" class="log-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">5. Read-Only MCP Inspector (POST /mcp)</span>
+        <span class="badge">JSON-RPC 2.0</span>
+      </div>
+      <div class="row" style="margin-bottom:8px;">
+        <button onclick="callMcp('tools/list')">tools/list</button>
+        <button onclick="callMcp('get_sensor_readings')">get_sensor_readings</button>
+        <button onclick="callMcp('get_ml_decisions')">get_ml_decisions</button>
+        <button class="danger" onclick="callMcp('forbidden_write')">Test Forbidden Write</button>
+      </div>
+      <pre class="json-out" id="mcpOutput">Click an MCP tool button above to inspect JSON-RPC 2.0 output...</pre>
+    </div>
+  </div>
+</div>
+
+<script>
+  let activeSimId = "";
+  let activeFarmId = "";
+  let simClockMode = "paused";
+  let pollTimer = null;
+
+  const BROKEN_FARM_PRESET = {
+    schema_version: "1.0",
+    name: "Broken Geometry & Hydraulics Test Farm",
+    location: { lat_deg: 30.0444, lon_deg: 31.2357, elevation_m: 23.0, start_doy: 95 },
+    enclosure: { id: "enclosure-1", type: "greenhouse", floor_area_m2: 1.5, air_volume_m3: 4.5, cover_transmittance: 0.75, vent_conductance_m_s: 0.015 },
+    reservoir: { id: "reservoir-1", initial_volume_l: 350.0, max_volume_l: 300.0, surface_area_m2: 0.5, wall_conductance_w_m2_k: 2.5, placement: "indoor" },
+    pump: { id: "pump-1", rated_flow_l_min: 0.8, initial_health: 1.0 },
+    aerator: { id: "aerator-1", air_flow_l_min: 5.0, otr_std_g_h: 2.7 },
+    fans: { id: "fans-1", placement: "horizontal_canopy", airflow_m3_s: 0.15 },
+    channels: [
+      { id: "ch-1", length_m: 2.0, width_m: 0.10, slope: 0.12, plant_spacing_m: 0.25, plants_per_channel: 12, initial_plant_age_days: 5.0 }
+    ],
+    source_water: { profile: "egypt_nile_fresh" },
+    initial_solution: { profile: "hoagland_lettuce_std" },
+    dosing_stocks: {
+      stock_a: { id: "stock-a", profile: "standard_part_a" },
+      stock_b: { id: "stock-b", profile: "standard_part_b" },
+      acid: { id: "stock-acid", profile: "nitric_acid_0_5M" },
+      base: { id: "stock-base", profile: "potassium_hydroxide_0_5M" }
+    },
+    sensors: [
+      { id: "sen-ec-1", kind: "EC", attached_to_id: "reservoir-1", accuracy: 0.02, drift_per_day: 0.002 }
+    ]
+  };
+
+  async function init() {
+    await loadFarms();
+    await loadSimulations();
+    if (!activeSimId && activeFarmId) {
+      await startSimFromSelectedFarm();
+    } else {
+      await refreshAll();
+    }
+    pollTimer = setInterval(() => {
+      if (simClockMode === "running") refreshAll();
+    }, 1000);
+  }
+
+  async function loadFarms() {
+    const res = await fetch("/api/v1/farms");
+    const farms = await res.json();
+    const sel = document.getElementById("farmSelector");
+    sel.innerHTML = "";
+    farms.forEach(f => {
+      const opt = document.createElement("option");
+      opt.value = f.id;
+      opt.textContent = `${f.name} (${f.id.slice(0, 8)})`;
+      sel.appendChild(opt);
+    });
+    if (farms.length > 0) {
+      activeFarmId = farms[0].id;
+      document.getElementById("farmJsonInput").value = JSON.stringify(farms[0].spec, null, 2);
+    }
+  }
+
+  async function onSelectFarm() {
+    activeFarmId = document.getElementById("farmSelector").value;
+    const res = await fetch(`/api/v1/farms/${activeFarmId}`);
+    if (res.ok) {
+      const f = await res.json();
+      document.getElementById("farmJsonInput").value = JSON.stringify(f.spec, null, 2);
+    }
+  }
+
+  async function loadPresetFarm(type) {
+    clearComponentErrors();
+    document.getElementById("validationFeedback").innerHTML = "";
+    if (type === "invalid") {
+      document.getElementById("farmJsonInput").value = JSON.stringify(BROKEN_FARM_PRESET, null, 2);
+      await validateFarmJson();
+    } else {
+      await onSelectFarm();
+      await validateFarmJson();
+    }
+  }
+
+  function clearComponentErrors() {
+    document.querySelectorAll(".comp-node").forEach(el => el.classList.remove("error"));
+  }
+
+  async function validateFarmJson() {
+    clearComponentErrors();
+    const raw = document.getElementById("farmJsonInput").value;
+    const res = await fetch("/api/v1/farms/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: raw
+    });
+    const data = await res.json();
+    const box = document.getElementById("validationFeedback");
+    if (res.ok && data.valid) {
+      box.innerHTML = `<div class="log-item good">✓ Farm JSON is valid! Ready to simulate.</div>`;
+      return true;
+    } else {
+      const errs = data.errors || [];
+      errs.forEach(e => {
+        const node = document.querySelector(`.comp-node[data-cid="${e.component_id}"]`);
+        if (node) node.classList.add("error");
+      });
+      box.innerHTML = errs.map(e =>
+        `<div class="log-item bad"><strong>[${e.component_id}]</strong> ${e.code}: ${e.message}</div>`
+      ).join("");
+      return false;
+    }
+  }
+
+  async function createFarmAndStartSim() {
+    const raw = document.getElementById("farmJsonInput").value;
+    const res = await fetch("/api/v1/farms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: raw
+    });
+    if (!res.ok) {
+      await validateFarmJson();
+      return;
+    }
+    const created = await res.json();
+    await loadFarms();
+    document.getElementById("farmSelector").value = created.id;
+    activeFarmId = created.id;
+    await startSimFromSelectedFarm();
+  }
+
+  async function loadSimulations() {
+    const res = await fetch("/api/v1/simulations");
+    const sims = await res.json();
+    const sel = document.getElementById("simSelector");
+    sel.innerHTML = "";
+    sims.forEach(s => {
+      const opt = document.createElement("option");
+      opt.value = s.id;
+      opt.textContent = `Sim ${s.id.slice(0, 8)} (Tick ${s.tick_index}, ${s.mode})`;
+      sel.appendChild(opt);
+    });
+    if (sims.length > 0 && !activeSimId) {
+      activeSimId = sims[0].id;
+    }
+    if (activeSimId) sel.value = activeSimId;
+  }
+
+  async function onSelectSim() {
+    activeSimId = document.getElementById("simSelector").value;
+    await refreshAll();
+  }
+
+  async function startSimFromSelectedFarm() {
+    const farmId = document.getElementById("farmSelector").value || activeFarmId;
+    if (!farmId) return;
+    const res = await fetch("/api/v1/simulations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        farm_id: farmId,
+        seed: 42,
+        step_seconds: 300,
+        mode: "paused",
+        speed_multiplier: Number(document.getElementById("clockSpeed").value || 60)
+      })
+    });
+    if (res.ok) {
+      const sim = await res.json();
+      activeSimId = sim.id;
+      await loadSimulations();
+      await refreshAll();
+    }
+  }
+
+  async function toggleClock() {
+    if (!activeSimId) return;
+    const nextMode = simClockMode === "running" ? "paused" : "running";
+    const speed = Number(document.getElementById("clockSpeed").value || 60);
+    const res = await fetch(`/api/v1/simulations/${activeSimId}/clock`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: nextMode, speed_multiplier: speed })
+    });
+    if (res.ok) await refreshAll();
+  }
+
+  async function updateClockSpeed() {
+    if (!activeSimId) return;
+    const speed = Number(document.getElementById("clockSpeed").value || 60);
+    await fetch(`/api/v1/simulations/${activeSimId}/clock`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: simClockMode, speed_multiplier: speed })
+    });
+    await refreshAll();
+  }
+
+  async function advanceSteps(steps) {
+    if (!activeSimId) return;
+    const res = await fetch(`/api/v1/simulations/${activeSimId}/advance`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ steps })
+    });
+    if (res.ok) await refreshAll();
+  }
+
+  function updateFaultDefaults() {
+    const kind = document.getElementById("faultKind").value;
+    const map = {
+      aeration_loss: { target: "aerator-1", intensity: 0.85 },
+      pump_degradation: { target: "pump-1", intensity: 0.65 },
+      heat_wave: { target: "enclosure-1", intensity: 8.0 },
+      reservoir_leak: { target: "reservoir-1", intensity: 0.00002 },
+      nutrient_imbalance: { target: "stock-a", intensity: 0.5 },
+      probe_drift: { target: "sen-ph-1", intensity: 0.0001 }
+    };
+    if (map[kind]) {
+      document.getElementById("faultTarget").value = map[kind].target;
+      document.getElementById("faultIntensity").value = map[kind].intensity;
+    }
+  }
+
+  async function injectFault(clear) {
+    if (!activeSimId) return;
+    const body = {
+      kind: document.getElementById("faultKind").value,
+      target_component_id: document.getElementById("faultTarget").value,
+      intensity: Number(document.getElementById("faultIntensity").value),
+      trigger_at_sim_sec: Number(document.getElementById("faultTriggerSec").value),
+      clear: Boolean(clear)
+    };
+    await fetch(`/api/v1/simulations/${activeSimId}/faults`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    await refreshAll();
+  }
+
+  async function clearAllFaults() {
+    if (!activeSimId) return;
+    const kinds = ["aeration_loss", "pump_degradation", "heat_wave", "reservoir_leak", "nutrient_imbalance", "probe_drift"];
+    for (const k of kinds) {
+      await fetch(`/api/v1/simulations/${activeSimId}/faults`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: k, target_component_id: "", intensity: 0, clear: true })
+      });
+    }
+    await refreshAll();
+  }
+
+  async function sendPresetCommand(preset) {
+    if (preset === "safe_dose") {
+      document.getElementById("cmdAction").value = "dose";
+      document.getElementById("cmdTarget").value = "reservoir-1";
+      document.getElementById("cmdStockA").value = 15;
+      document.getElementById("cmdStockB").value = 15;
+      document.getElementById("cmdAcid").value = 0;
+      document.getElementById("cmdBase").value = 0;
+      document.getElementById("cmdRefill").value = 0;
+      document.getElementById("cmdReason").value = "Safe balanced A+B nutrient dose";
+    } else if (preset === "unsafe_acid") {
+      document.getElementById("cmdAction").value = "dose";
+      document.getElementById("cmdTarget").value = "reservoir-1";
+      document.getElementById("cmdStockA").value = 0;
+      document.getElementById("cmdStockB").value = 0;
+      document.getElementById("cmdAcid").value = 500;
+      document.getElementById("cmdBase").value = 0;
+      document.getElementById("cmdRefill").value = 0;
+      document.getElementById("cmdReason").value = "Hallucinated 500mL acid dump (triggers PLC interlock)";
+    } else if (preset === "overflow") {
+      document.getElementById("cmdAction").value = "refill_water";
+      document.getElementById("cmdTarget").value = "reservoir-1";
+      document.getElementById("cmdStockA").value = 0;
+      document.getElementById("cmdStockB").value = 0;
+      document.getElementById("cmdAcid").value = 0;
+      document.getElementById("cmdBase").value = 0;
+      document.getElementById("cmdRefill").value = 120;
+      document.getElementById("cmdReason").value = "Excessive 120L refill over 300L tank max";
+    }
+    await submitCustomCommand();
+  }
+
+  async function submitCustomCommand() {
+    if (!activeSimId) return;
+    const key = document.getElementById("mlApiKey").value;
+    const throttleVal = document.getElementById("cmdThrottle").value;
+    const payload = {
+      target_component_id: document.getElementById("cmdTarget").value,
+      action: document.getElementById("cmdAction").value,
+      dose_stock_a_ml: Number(document.getElementById("cmdStockA").value || 0),
+      dose_stock_b_ml: Number(document.getElementById("cmdStockB").value || 0),
+      dose_acid_ml: Number(document.getElementById("cmdAcid").value || 0),
+      dose_base_ml: Number(document.getElementById("cmdBase").value || 0),
+      refill_water_l: Number(document.getElementById("cmdRefill").value || 0),
+      reason: document.getElementById("cmdReason").value || "Manual command"
+    };
+    if (throttleVal !== "") payload.throttle = Number(throttleVal);
+
+    await fetch(`/api/v1/simulations/${activeSimId}/commands`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${key}`
+      },
+      body: JSON.stringify(payload)
+    });
+    await refreshAll();
+  }
+
+  async function sendTestAlert() {
+    if (!activeSimId) return;
+    const key = document.getElementById("mlApiKey").value;
+    await fetch(`/api/v1/simulations/${activeSimId}/alerts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${key}`
+      },
+      body: JSON.stringify({
+        component_id: document.getElementById("faultTarget").value || "aerator-1",
+        severity: "critical",
+        code: "ML_ANOMALY_DETECTED",
+        message: `Anomaly detected on ${document.getElementById("faultTarget").value}`
+      })
+    });
+    await refreshAll();
+  }
+
+  async function callMcp(action) {
+    let rpcBody = {};
+    if (action === "tools/list") {
+      rpcBody = { jsonrpc: "2.0", id: 1, method: "tools/list" };
+    } else if (action === "get_sensor_readings") {
+      rpcBody = {
+        jsonrpc: "2.0", id: 2, method: "tools/call",
+        params: { name: "get_sensor_readings", arguments: { simulation_id: activeSimId, limit: 8 } }
+      };
+    } else if (action === "get_ml_decisions") {
+      rpcBody = {
+        jsonrpc: "2.0", id: 3, method: "tools/call",
+        params: { name: "get_ml_decisions", arguments: { simulation_id: activeSimId, limit: 10 } }
+      };
+    } else if (action === "forbidden_write") {
+      rpcBody = {
+        jsonrpc: "2.0", id: 4, method: "tools/call",
+        params: { name: "submit_command", arguments: { simulation_id: activeSimId } }
+      };
+    }
+    const res = await fetch("/mcp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(rpcBody)
+    });
+    const data = await res.json();
+    document.getElementById("mcpOutput").textContent = JSON.stringify(data, null, 2);
+  }
+
+  async function refreshAll() {
+    if (!activeSimId) return;
+
+    // 1. Simulation Status
+    const stRes = await fetch(`/api/v1/simulations/${activeSimId}`);
+    if (stRes.ok) {
+      const st = await stRes.json();
+      simClockMode = st.mode;
+      document.getElementById("hdrSimStatus").textContent = `Sim ${st.id.slice(0, 8)} (${st.mode})`;
+      document.getElementById("hdrSimTime").textContent = `t = ${st.sim_time_sec}s (Day ${st.sim_days.toFixed(2)})`;
+      document.getElementById("clockModeBadge").textContent = st.mode;
+      document.getElementById("clockModeBadge").className = st.mode === "running" ? "badge good" : "badge";
+      document.getElementById("btnToggleClock").textContent = st.mode === "running" ? "⏸ Pause Live Clock" : "▶ Run Live Clock";
+      document.getElementById("btnToggleClock").className = st.mode === "running" ? "warn" : "success";
+
+      document.getElementById("statTick").textContent = st.tick_index;
+      document.getElementById("statDays").textContent = st.sim_days.toFixed(2);
+      document.getElementById("statStep").textContent = st.step_seconds;
+      document.getElementById("statDropped").textContent = st.dropped_batches;
+
+      // Highlight faulted components
+      document.querySelectorAll(".comp-node").forEach(el => el.classList.remove("fault"));
+      const faults = st.active_faults || [];
+      faults.forEach(f => {
+        const node = document.querySelector(`.comp-node[data-cid="${f.target_component_id}"]`);
+        if (node) node.classList.add("fault");
+      });
+      document.getElementById("activeFaultsList").innerHTML = faults.length === 0
+        ? `<div class="log-item">No active faults</div>`
+        : faults.map(f => `<div class="log-item warn">⚡ <strong>${f.kind}</strong> on <code>${f.target_component_id}</code> (intensity=${f.intensity})</div>`).join("");
+    }
+
+    // 2. Latest Noisy Sensor Readings
+    const rdRes = await fetch(`/api/v1/simulations/${activeSimId}/readings?limit=16`);
+    if (rdRes.ok) {
+      const readings = await rdRes.json();
+      const latestByKind = {};
+      readings.forEach(r => {
+        if (!(r.kind in latestByKind)) latestByKind[r.kind] = r;
+      });
+      ["EC", "pH", "DO", "V_res", "T_w", "T_air", "RH", "RGB"].forEach(k => {
+        const el = document.getElementById(`sen-${k}`);
+        if (!el) return;
+        const r = latestByKind[k];
+        if (!r || r.value === null || r.value === undefined) {
+          el.innerHTML = `<span style="color:var(--warn)">DROPOUT</span>`;
+        } else {
+          el.innerHTML = `${r.value.toFixed(2)} <span class="metric-unit">${r.unit}</span>`;
+        }
+      });
+    }
+
+    // 3. Operator Ground Truth
+    const gtRes = await fetch(`/api/v1/simulations/${activeSimId}/ground-truth`);
+    if (gtRes.ok) {
+      const gt = await gtRes.json();
+      document.getElementById("gtShootFW").textContent = gt.shoot_fw_g_per_plant.toFixed(2);
+      document.getElementById("gtShootDW").textContent = gt.shoot_dw_g_per_plant.toFixed(3);
+      document.getElementById("gtStress").textContent = gt.stress_factor.toFixed(3);
+      document.getElementById("gtFilm").textContent = `${gt.film_depth_mm.toFixed(2)} / ${gt.residence_time_sec.toFixed(0)}s`;
+
+      const ions = gt.ions_mmol_l || {};
+      document.getElementById("ionGrid").innerHTML = Object.entries(ions).map(([ion, val]) =>
+        `<div class="metric-box"><div class="metric-label"><span>[${ion}]</span></div><div class="metric-val" style="font-size:14px;">${Number(val).toFixed(2)} <span class="metric-unit">mmol/L</span></div></div>`
+      ).join("");
+    }
+
+    // 4. ML Commands Audit Log
+    const cmdRes = await fetch(`/api/v1/simulations/${activeSimId}/commands`);
+    if (cmdRes.ok) {
+      const cmds = await cmdRes.json();
+      document.getElementById("cmdAuditList").innerHTML = cmds.length === 0
+        ? `<div class="log-item">No ML commands submitted yet</div>`
+        : cmds.map(c => {
+            const cls = c.status === "accepted" ? "good" : "bad";
+            const extra = c.status === "rejected_safety" ? ` — <strong>${c.rejection_code}</strong>: ${c.rejection_message}` : "";
+            return `<div class="log-item ${cls}">[t=${c.sim_time_sec}s] <strong>${c.status.toUpperCase()}</strong> (${c.action} on ${c.target_component_id}): ${c.reason}${extra}</div>`;
+          }).join("");
+    }
+
+    // 5. Alerts List
+    const alRes = await fetch(`/api/v1/simulations/${activeSimId}/alerts`);
+    if (alRes.ok) {
+      const alerts = await alRes.json();
+      document.getElementById("alertsList").innerHTML = alerts.length === 0
+        ? `<div class="log-item">No alerts raised</div>`
+        : alerts.map(a => `<div class="log-item bad">[t=${a.sim_time_sec}s] <strong>${a.code}</strong> (${a.component_id}): ${a.message}</div>`).join("");
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>

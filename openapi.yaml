@@ -1,0 +1,474 @@
+openapi: 3.1.0
+info:
+  title: Hydroponic NFT Lettuce Digital Twin API
+  version: 1.0.0
+  description: >
+    REST API and Read-Only MCP endpoint for the configurable recirculating NFT lettuce
+    digital twin (Sensor X Challenge). Enforces component-tagged validation, noisy sensor
+    observation (Module 11), physical fault injection (Module 12), and ML-exclusive
+    actuation behind a deterministic PLC safety guardian.
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+components:
+  securitySchemes:
+    MLApiKeyAuth:
+      type: http
+      scheme: bearer
+      description: Static bearer token (HYDRO_ML_API_KEY) granted exclusively to the ML controller.
+
+  schemas:
+    ValidationResponse:
+      type: object
+      required: [valid, errors]
+      properties:
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationIssue'
+
+    ValidationIssue:
+      type: object
+      required: [component_id, json_path, code, message]
+      properties:
+        component_id:
+          type: string
+          example: "ch-2"
+        json_path:
+          type: string
+          example: "$.channels[1].slope"
+        code:
+          type: string
+          example: "PHYSICS_RANGE_VIOLATION"
+        message:
+          type: string
+        actual: {}
+        allowed_range:
+          type: object
+          properties:
+            min: { type: number }
+            max: { type: number }
+            unit: { type: string }
+
+    StartSimulationRequest:
+      type: object
+      required: [farm_id, seed]
+      properties:
+        farm_id:
+          type: string
+        seed:
+          type: integer
+          example: 42
+        step_seconds:
+          type: integer
+          default: 300
+          description: Integration timestep delta_t in seconds (default 300s = 5 min).
+        initial_mode:
+          type: string
+          enum: [paused, running]
+          default: paused
+        speed_multiplier:
+          type: number
+          default: 60.0
+        scheduled_faults:
+          type: array
+          items:
+            $ref: '#/components/schemas/FaultSpec'
+
+    ClockControlRequest:
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [paused, running]
+        speed_multiplier:
+          type: number
+          minimum: 0.1
+          maximum: 86400.0
+
+    AdvanceRequest:
+      type: object
+      required: [steps]
+      properties:
+        steps:
+          type: integer
+          minimum: 1
+          maximum: 20000
+          description: Number of delta_t steps to advance deterministically at max CPU speed.
+
+    FaultSpec:
+      type: object
+      required: [kind, target_component_id, intensity]
+      properties:
+        kind:
+          type: string
+          enum:
+            - pump_degradation
+            - aeration_loss
+            - heat_wave
+            - probe_drift
+            - nutrient_imbalance
+            - reservoir_leak
+        target_component_id:
+          type: string
+          example: "reservoir-1"
+        intensity:
+          type: number
+          description: >
+            Physical perturbation magnitude per Module 12 (e.g. fractional pump/aerator loss in [0,1],
+            leak orifice area m^2 or effective L/h equivalent, heatwave delta_T in K).
+        trigger_at_sim_sec:
+          type: number
+          default: 0
+        clear:
+          type: boolean
+          default: false
+
+    SensorReading:
+      type: object
+      required: [tick_index, sim_time_sec, sensor_id, component_id, kind, unit]
+      properties:
+        tick_index:
+          type: integer
+        sim_time_sec:
+          type: number
+        sensor_id:
+          type: string
+          example: "sen-ec-1"
+        component_id:
+          type: string
+          example: "reservoir-1"
+        kind:
+          type: string
+          enum: [EC, pH, T_w, DO, T_air, RH, CO2, V_res, RGB]
+        value:
+          type: [number, "null"]
+          description: Noisy/drifted probe value, or null during a Module 11 packet dropout.
+        unit:
+          type: string
+          example: "dS/m"
+
+    CreateAlertRequest:
+      type: object
+      required: [component_id, severity, code, message]
+      properties:
+        component_id:
+          type: string
+          example: "reservoir-1"
+        severity:
+          type: string
+          enum: [info, warning, critical]
+        code:
+          type: string
+          example: "PHYSICAL_LEAK_DETECTED"
+        message:
+          type: string
+
+    SubmitCommandRequest:
+      type: object
+      required: [target_component_id, action, reason]
+      properties:
+        target_component_id:
+          type: string
+          example: "reservoir-1"
+        action:
+          type: string
+          enum:
+            - dose
+            - refill_water
+            - set_pump_throttle
+            - set_aerator_throttle
+            - set_fan_throttle
+        dose_stock_a_ml:
+          type: number
+          minimum: 0
+        dose_stock_b_ml:
+          type: number
+          minimum: 0
+        dose_acid_ml:
+          type: number
+          minimum: 0
+        dose_base_ml:
+          type: number
+          minimum: 0
+        refill_water_l:
+          type: number
+          minimum: 0
+        throttle:
+          type: number
+          minimum: 0
+          maximum: 1
+        reason:
+          type: string
+          example: "Counteract nitrate-uptake alkalinization drift toward pH 6.8"
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      responses:
+        '200':
+          description: Server is alive
+
+  /readyz:
+    get:
+      summary: Readiness probe (verifies PostgreSQL connectivity)
+      responses:
+        '200':
+          description: Ready to serve traffic
+        '503':
+          description: Database unavailable
+
+  /api/v1/farms/validate:
+    post:
+      summary: Validate a Farm JSON specification against structural and physics-range rules
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './schema/farm.schema.json'
+      responses:
+        '200':
+          description: Farm specification is valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResponse'
+        '422':
+          description: Validation failed (errors tagged with component_id)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResponse'
+
+  /api/v1/farms:
+    post:
+      summary: Validate and persist a new Farm specification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './schema/farm.schema.json'
+      responses:
+        '201':
+          description: Farm created
+        '422':
+          description: Validation failed
+    get:
+      summary: List all saved Farm specifications
+      responses:
+        '200':
+          description: List of farms
+
+  /api/v1/farms/{farm_id}:
+    get:
+      summary: Get a Farm specification by ID
+      parameters:
+        - in: path
+          name: farm_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Farm specification
+        '404':
+          description: Not found
+
+  /api/v1/simulations:
+    post:
+      summary: Initialize and start a simulation run for a saved Farm
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartSimulationRequest'
+      responses:
+        '201':
+          description: Simulation created
+
+  /api/v1/simulations/{sim_id}:
+    get:
+      summary: Get simulation status, simulated clock time, and active fault summary
+      parameters:
+        - in: path
+          name: sim_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Simulation status
+
+  /api/v1/simulations/{sim_id}/clock:
+    post:
+      summary: Pause, resume, or change the wall-clock speed multiplier of a simulation
+      parameters:
+        - in: path
+          name: sim_id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClockControlRequest'
+      responses:
+        '200':
+          description: Clock updated
+
+  /api/v1/simulations/{sim_id}/advance:
+    post:
+      summary: Synchronously fast-forward the simulation by N steps at max CPU speed
+      parameters:
+        - in: path
+          name: sim_id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdvanceRequest'
+      responses:
+        '200':
+          description: Simulation advanced; returns latest sensor readings snapshot
+
+  /api/v1/simulations/{sim_id}/faults:
+    post:
+      summary: Inject or clear a Module 12 physical fault perturbation
+      parameters:
+        - in: path
+          name: sim_id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FaultSpec'
+      responses:
+        '200':
+          description: Fault state updated
+
+  /api/v1/simulations/{sim_id}/readings:
+    get:
+      summary: Get noisy sensor observations (Module 11 observer layer; never exposes true 10-ion state)
+      parameters:
+        - in: path
+          name: sim_id
+          required: true
+          schema: { type: string }
+        - in: query
+          name: component_id
+          schema: { type: string }
+        - in: query
+          name: since_sec
+          schema: { type: number }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 100 }
+      responses:
+        '200':
+          description: Noisy sensor readings
+
+  /api/v1/simulations/{sim_id}/ground-truth:
+    get:
+      summary: Export true conserved physical state (operator/offline ML training only; blocked from MCP)
+      parameters:
+        - in: path
+          name: sim_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: True physical state including 10 ion concentrations and active fault parameters
+
+  /api/v1/simulations/{sim_id}/alerts:
+    get:
+      summary: List component-tagged alerts (used by Three.js and MCP)
+      parameters:
+        - in: path
+          name: sim_id
+          required: true
+          schema: { type: string }
+        - in: query
+          name: component_id
+          schema: { type: string }
+      responses:
+        '200':
+          description: List of alerts
+    post:
+      summary: Raise a component-tagged anomaly alert (ML Controller only)
+      security:
+        - MLApiKeyAuth: []
+      parameters:
+        - in: path
+          name: sim_id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAlertRequest'
+      responses:
+        '201':
+          description: Alert recorded
+        '401':
+          description: Missing bearer token
+        '403':
+          description: Invalid ML API key
+
+  /api/v1/simulations/{sim_id}/commands:
+    get:
+      summary: List ML actuation commands and safety audit decisions
+      parameters:
+        - in: path
+          name: sim_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: List of accepted and rejected commands
+    post:
+      summary: Submit an actuation command (ML Controller only, guarded by Go Safety Layer)
+      security:
+        - MLApiKeyAuth: []
+      parameters:
+        - in: path
+          name: sim_id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitCommandRequest'
+      responses:
+        '201':
+          description: Command accepted by Safety Layer and queued for next physics step
+        '401':
+          description: Missing bearer token
+        '403':
+          description: Invalid ML API key
+        '422':
+          description: Command rejected by Go Safety Layer (persisted in audit trail as rejected_safety)
+
+  /mcp:
+    post:
+      summary: Streamable HTTP JSON-RPC 2.0 endpoint for Read-Only MCP Server
+      description: Exposes get_farm_spec, get_sensor_readings, get_alerts, and get_ml_decisions. Zero actuation tools.
+      responses:
+        '200':
+          description: JSON-RPC 2.0 response

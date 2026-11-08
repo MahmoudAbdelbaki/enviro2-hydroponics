@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0",
+  "name": "Indoor LED Hydroponic Lettuce (32-Day Real Sensor Benchmark)",
+  "location": {
+    "lat_deg": 30.0444,
+    "lon_deg": 31.2357,
+    "elevation_m": 23.0,
+    "start_doy": 107
+  },
+  "enclosure": {
+    "id": "enclosure-led",
+    "type": "indoor_LED",
+    "floor_area_m2": 0.60,
+    "air_volume_m3": 1.80,
+    "cover_transmittance": 0.90,
+    "vent_conductance_m_s": 0.025
+  },
+  "reservoir": {
+    "id": "reservoir-led",
+    "initial_volume_l": 40.0,
+    "max_volume_l": 50.0,
+    "surface_area_m2": 0.15,
+    "wall_conductance_w_m2_k": 3.50,
+    "placement": "indoor"
+  },
+  "pump": {
+    "id": "pump-led",
+    "rated_flow_l_min": 1.5,
+    "initial_health": 1.0
+  },
+  "aerator": {
+    "id": "aerator-led",
+    "air_flow_l_min": 2.5,
+    "otr_std_g_h": 1.5
+  },
+  "fans": {
+    "id": "fans-led",
+    "placement": "horizontal_canopy",
+    "airflow_m3_s": 0.08
+  },
+  "channels": [
+    {
+      "id": "ch-led-1",
+      "length_m": 1.2,
+      "width_m": 0.10,
+      "slope": 0.02,
+      "plant_spacing_m": 0.20,
+      "plants_per_channel": 6,
+      "initial_plant_age_days": 1.0
+    }
+  ],
+  "source_water": {
+    "profile": "ro_pure"
+  },
+  "initial_solution": {
+    "profile": "hoagland_lettuce_std"
+  },
+  "dosing_stocks": {
+    "stock_a": { "id": "stock-a", "profile": "standard_part_a" },
+    "stock_b": { "id": "stock-b", "profile": "standard_part_b" },
+    "acid": { "id": "stock-acid", "profile": "nitric_acid_0_5M" },
+    "base": { "id": "stock-base", "profile": "potassium_hydroxide_0_5M" }
+  },
+  "sensors": [
+    { "id": "sen-tw-1", "kind": "T_w", "attached_to_id": "reservoir-led", "accuracy": 0.1, "drift_per_day": 0.0 },
+    { "id": "sen-tair-1", "kind": "T_air", "attached_to_id": "enclosure-led", "accuracy": 0.1, "drift_per_day": 0.0 }
+  ]
+}
