@@ -27,3 +27,6 @@ frontend/.vite/
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# GitHub workflows (requires 'workflow' token scope to push)
+.github/
