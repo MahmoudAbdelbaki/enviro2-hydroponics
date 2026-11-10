@@ -207,18 +207,14 @@ export class TwinSession extends Emitter {
       }
     }
     for (const cmd of res.commands) {
-      try {
-        const rec = await this.api.postCommand(this.simId, cmd);
-        const chem = cmd.dose_stock_a_ml || cmd.dose_acid_ml || cmd.dose_base_ml;
-        if (rec?.status === 'accepted') {
-          this.autopilot.noteChemAccepted(simTimeSec, cmd);
-          this.lastDose = { at: performance.now(), cmd };
-          this.emit('dose', cmd);
-        } else {
-          this.emit('rejected', rec);
-        }
-      } catch (err) {
-        this.emit('error', err);
+      const rec = await this.api.postCommand(this.simId, cmd);
+      const chem = cmd.dose_stock_a_ml || cmd.dose_acid_ml || cmd.dose_base_ml;
+      if (rec?.status === 'accepted') {
+        this.autopilot.noteChemAccepted(simTimeSec, cmd);
+        this.lastDose = { at: performance.now(), cmd };
+        this.emit('dose', cmd);
+      } else {
+        this.emit('rejected', rec);
       }
     }
   }

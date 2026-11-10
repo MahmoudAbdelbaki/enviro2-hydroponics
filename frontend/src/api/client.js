@@ -9,7 +9,7 @@ export class ApiError extends Error {
   }
 }
 
-export function createApi({ baseUrl = '', mlKey = 'sensor-x-dev-ml-key' } = {}) {
+export function createApi({ baseUrl = '', mlKey = 'dev-ml-secret-key' } = {}) {
   async function call(method, path, body, { auth = false, okStatuses = [] } = {}) {
     const headers = {};
     if (body !== undefined) headers['Content-Type'] = 'application/json';
