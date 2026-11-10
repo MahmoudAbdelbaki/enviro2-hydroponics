@@ -30,3 +30,13 @@ Thumbs.db
 
 # GitHub workflows (requires 'workflow' token scope to push)
 .github/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
