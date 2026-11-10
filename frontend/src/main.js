@@ -1,10 +1,9 @@
 import { createApi } from './api/client.js';
 import { TwinSession } from './sim/session.js';
-import { PRESETS, getPreset, cloneDesign, buildFarmSpec, plantCount } from './domain/presets.js';
+import { getPreset, cloneDesign, plantCount } from './domain/presets.js';
 import { FAULTS, FAULT_BY_KIND } from './domain/faults.js';
-import { doSatBensonKrause } from './sim/autopilot.js';
 
-// --- API & Twin Session Initializer ---
+// --- API & Twin Session ---
 const api = createApi({ baseUrl: '' });
 const session = new TwinSession(api);
 window.session = session;
@@ -13,1263 +12,908 @@ window.api = api;
 // --- Application State ---
 let currentPreset = getPreset('exp2');
 let activeView = 'farm-status';
-let isSpeed10x = false;
 let selectedFault = FAULTS[0];
-let activeDosingTimeouts = {};
 let activeAlertTab = 'open';
 let selectedVitalityMetric = 'DO';
 let selectedDosingTimeframe = '24h';
+const dosingTimeouts = {};
 
-// Total cumulative doses for stock levels calculation
+// Cumulative AI doses since the current simulation started (drives stock levels).
+// Stock capacities are display assumptions; the backend does not model stock depletion.
+const STOCK_CAPACITY_ML = { a: 800, b: 800, ph: 350 };
 let cumulativeDoses = { a: 0, b: 0, acid: 0, base: 0, water: 0 };
-let lastDoseAmounts = { a: 0, b: 0, acid: 0, base: 0, water: 0 };
+let lastDose = { a: 0, b: 0, acid: 0, base: 0, water: 0 };
 
-// View Titles & Subtitles Dictionary
-const VIEW_METADATA = {
-  'farm-status': {
-    title: 'Farm Status',
-    subtitle: 'Executive Telemetry, Dosing Pill Gauges & Real-Time Splines',
-  },
-  'gully-matrix': {
-    title: 'Gully Matrix & Layout Builder',
-    subtitle: '2D Matrix Grid (A..D × 1..3) & Topology Editor',
-  },
-  'isometric-rack': {
-    title: '2.5D Isometric Rack Overview',
-    subtitle: 'Angled Gully Parallelograms & Floating Alert Pins',
-  },
-  'channel-deepdive': {
-    title: 'Column B1 Overview',
-    subtitle: '2.5D Sprout Plane, 4-Stage Growth Lifecycle & DO Gradient',
-  },
-  'judge-proof': {
-    title: 'Judge / Proof View',
-    subtitle: 'Sensor Readings vs. Conserved Physics Ground Truth & PLC Safety Ledger',
-  },
+const VIEW_TITLES = {
+  'farm-status': 'Farm Status',
+  'gully-matrix': 'Gully Matrix & Layout',
+  'isometric-rack': 'Rack Overview',
+  'channel-deepdive': 'Channel B1 Overview',
+  'judge-proof': 'Judge / Proof View',
 };
 
-// --- DOM Elements Cache ---
+const COMPONENT_NAMES = {
+  'res-1': 'Main Reservoir',
+  'reservoir-1': 'Main Reservoir',
+  'pump-1': 'Circulation Pump',
+  'aer-1': 'Air Bubbler',
+  'enc-1': 'Greenhouse',
+  'stock-a': 'Stock A',
+  'stock-b': 'Stock B',
+  'stock-acid': 'Acid Buffer',
+  'stock-base': 'Base Buffer',
+  'fans-1': 'Canopy Fans',
+  'sen-ph-1': 'pH Probe',
+  'sen-ec-1': 'EC Probe',
+  'sen-do-1': 'Outlet DO Probe',
+};
+
+const ALERT_TITLES = {
+  IMPLIED_PUMP_OR_AERATION_FAULT: 'Implied pump flow degradation',
+  PH_PROBE_DRIFT_SUSPECTED: 'pH probe drift detected',
+  RESERVOIR_LEAK_SUSPECTED: 'Reservoir leak inferred',
+  HEAT_STRESS_EVENT: 'Heat stress event',
+  NUTRIENT_MIX_ANOMALY: 'Nutrient mix anomaly',
+};
+
+// --- Formatting helpers ---
+const pad2 = (n) => String(Math.max(0, Math.floor(n))).padStart(2, '0');
+const fmtSimTime = (sec = 0) => `D${pad2(sec / 86400)} ${pad2((sec % 86400) / 3600)}:${pad2((sec % 3600) / 60)}`;
+const fmtNum = (v, d = 2) => (v == null || Number.isNaN(v) ? '—' : Number(v).toFixed(d));
+const nameOf = (id) => COMPONENT_NAMES[id] || id || 'System';
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+function stageOf(days) {
+  if (days >= 25) return { n: 4, name: 'Canopy / Harvest' };
+  if (days >= 14) return { n: 3, name: 'Vegetative Growth' };
+  if (days >= 6) return { n: 2, name: 'Seedling' };
+  return { n: 1, name: 'Germination' };
+}
+
+// --- DOM cache ---
+const $ = (id) => document.getElementById(id);
 const el = {
-  // Navigation
   railBtns: document.querySelectorAll('.rail-btn'),
-  viewTitle: document.getElementById('header-view-title'),
-  viewSubtitle: document.getElementById('header-view-subtitle'),
-  views: document.querySelectorAll('.workspace-view'),
+  views: document.querySelectorAll('.view'),
+  viewTitle: $('header-view-title'),
+  simMeta: $('sim-meta'),
+  railLinkDot: $('rail-link-dot'),
 
-  // Header Time & Controls
-  seasonPicker: document.getElementById('season-picker'),
-  simClockTime: document.getElementById('sim-clock-time'),
-  btnPlayPause: document.getElementById('btn-play-pause'),
-  btnPlayIcon: document.getElementById('btn-play-icon'),
-  btnPlayLabel: document.getElementById('btn-play-label'),
-  btnSpeedToggle: document.getElementById('btn-speed-toggle'),
-  btnSpeedLabel: document.getElementById('btn-speed-label'),
-  btnStepDay: document.getElementById('btn-step-day'),
+  seasonPicker: $('season-picker'),
+  simClock: $('sim-clock-time'),
+  btnPlay: $('btn-play-pause'),
+  icoPlay: $('ico-play'),
+  icoPause: $('ico-pause'),
+  btnPlayLabel: $('btn-play-label'),
+  speedBtns: document.querySelectorAll('.seg [data-speed]'),
+  btnStepDay: $('btn-step-day'),
+  btnOpenChallenge: $('btn-open-challenge'),
+  badgeAutopilot: $('badge-autopilot'),
+  badgePlc: $('badge-plc'),
 
-  // Right Quick Details Inspector
-  chipActivePreset: document.getElementById('chip-active-preset'),
-  alertCountCritical: document.getElementById('alert-count-critical'),
-  alertHeadlineCritical: document.getElementById('alert-headline-critical'),
-  alertCountWarning: document.getElementById('alert-count-warning'),
-  alertHeadlineWarning: document.getElementById('alert-headline-warning'),
-  alertCountInfo: document.getElementById('alert-count-info'),
-  alertHeadlineInfo: document.getElementById('alert-headline-info'),
+  kpiEc: $('kpi-ec'),
+  kpiPh: $('kpi-ph'),
+  kpiDoTank: $('kpi-do-tank'),
+  kpiDoOutlet: $('kpi-do-outlet'),
+  kpiFlow: $('kpi-flow'),
+  kpiVpd: $('kpi-vpd'),
 
-  infoSimId: document.getElementById('info-sim-id'),
-  infoFarmPreset: document.getElementById('info-farm-preset'),
-  infoAutopilotStatus: document.getElementById('info-autopilot-status'),
-  infoPlcStatus: document.getElementById('info-plc-status'),
+  bioStage: $('bio-stage'),
+  bioGullies: $('bio-gullies'),
+  bioPorts: $('bio-ports'),
+  bioPlants: $('bio-plants'),
+  bioFw: $('bio-fw'),
+  bioTarget: $('bio-target'),
+  bioSegbar: $('bio-segbar'),
+  bioPct: $('bio-pct'),
+  bioDay: $('bio-day'),
+  bioOk: $('bio-ok'),
+  bioStress: $('bio-stress'),
+  bioPortGrid: $('bio-port-grid'),
 
-  harvestProgressCircle: document.getElementById('harvest-progress-circle'),
-  plantsTotalCount: document.getElementById('plants-total-count'),
-  harvestDayEta: document.getElementById('harvest-day-eta'),
-  growthStageTag: document.getElementById('growth-stage-tag'),
+  lvl: {
+    a: { row: $('lvl-a'), state: $('lvl-a-state'), pct: $('lvl-a-pct'), fill: $('lvl-a-fill') },
+    b: { row: $('lvl-b'), state: $('lvl-b-state'), pct: $('lvl-b-pct'), fill: $('lvl-b-fill') },
+    ph: { row: $('lvl-ph'), state: $('lvl-ph-state'), pct: $('lvl-ph-pct'), fill: $('lvl-ph-fill') },
+    water: { row: $('lvl-water'), state: $('lvl-water-state'), pct: $('lvl-water-pct'), fill: $('lvl-water-fill') },
+  },
 
-  liveEc: document.getElementById('live-ec'),
-  livePh: document.getElementById('live-ph'),
-  liveDoTank: document.getElementById('live-do-tank'),
-  liveDoOutlet: document.getElementById('live-do-outlet'),
-  liveFlow: document.getElementById('live-flow'),
-  liveVpd: document.getElementById('live-vpd'),
+  cntCrit: $('cnt-crit'),
+  cntWarn: $('cnt-warn'),
+  cntInfo: $('cnt-info'),
+  alertTabs: document.querySelectorAll('#alert-filter-tabs .tab'),
+  alertsFeed: $('alerts-feed-container'),
 
-  btnOpenChallenge: document.getElementById('btn-open-challenge'),
+  vitalSelect: $('vitality-metric-select'),
+  vitalSvg: $('svg-vitalities-chart'),
+  vitalLabel1: $('label-vitality-line1'),
+  vitalVal1: $('val-vitality-line1'),
+  vitalLabel2: $('label-vitality-line2'),
+  vitalVal2: $('val-vitality-line2'),
+  vitalDelta: $('val-vitality-delta'),
 
-  // Farm Status: Capacity & Harvest Donut
-  donutActiveGullies: document.getElementById('donut-active-gullies'),
-  donutPortsFilled: document.getElementById('donut-ports-filled'),
-  donutBiomassTarget: document.getElementById('donut-biomass-target'),
-  harvestDonutProgress: document.getElementById('harvest-donut-progress'),
-  donutCenterPct: document.getElementById('donut-center-pct'),
-  donutCenterGrams: document.getElementById('donut-center-grams'),
-  legendHealthyCount: document.getElementById('legend-healthy-count'),
-  legendStressedCount: document.getElementById('legend-stressed-count'),
+  dosingSelect: $('dosing-timeframe-select'),
+  barSvg: $('svg-dosing-bar-chart'),
+  activityTotal: $('activity-total'),
 
-  // Farm Status: 4 Vertical Column Pill Gauges
-  trackStockA: document.getElementById('track-stock-a'),
-  trackStockB: document.getElementById('track-stock-b'),
-  trackStockPh: document.getElementById('track-stock-ph'),
-  trackWaterTank: document.getElementById('track-water-tank'),
-  fillVerticalStockA: document.getElementById('fill-vertical-stock-a'),
-  fillVerticalStockB: document.getElementById('fill-vertical-stock-b'),
-  fillVerticalStockPh: document.getElementById('fill-vertical-stock-ph'),
-  fillVerticalWaterTank: document.getElementById('fill-vertical-water-tank'),
-  pctVerticalStockA: document.getElementById('pct-vertical-stock-a'),
-  pctVerticalStockB: document.getElementById('pct-vertical-stock-b'),
-  pctVerticalStockPh: document.getElementById('pct-vertical-stock-ph'),
-  pctVerticalWaterTank: document.getElementById('pct-vertical-water-tank'),
-  badgeVerticalStockA: document.getElementById('badge-vertical-stock-a'),
-  badgeVerticalStockB: document.getElementById('badge-vertical-stock-b'),
-  badgeVerticalStockPh: document.getElementById('badge-vertical-stock-ph'),
-  badgeVerticalWaterTank: document.getElementById('badge-vertical-water-tank'),
-  calloutStockA: document.getElementById('callout-stock-a'),
-  calloutStockB: document.getElementById('callout-stock-b'),
-  calloutStockPh: document.getElementById('callout-stock-ph'),
-  calloutWaterTank: document.getElementById('callout-water-tank'),
+  ledgerStats: $('ledger-stats-subtext'),
+  ledgerBody: $('ledger-table-body'),
 
-  // Farm Status: Recent Alerts Card & Filter Tabs
-  alertFilterTabs: document.querySelectorAll('.alert-tab'),
-  alertsFeedContainer: document.getElementById('alerts-feed-container'),
+  matrix: $('matrix-grid-container'),
+  isoSvg: $('svg-isometric-rack'),
+  timelineStages: document.querySelectorAll('.tl-stage'),
+  proofBody: $('proof-table-body'),
 
-  // Farm Status: Activity Bar Chart & Vitalities Spline
-  dosingTimeframeSelect: document.getElementById('dosing-timeframe-select'),
-  svgDosingBarChart: document.getElementById('svg-dosing-bar-chart'),
-  vitalityMetricSelect: document.getElementById('vitality-metric-select'),
-  labelVitalityLine1: document.getElementById('label-vitality-line1'),
-  valVitalityLine1: document.getElementById('val-vitality-line1'),
-  labelVitalityLine2: document.getElementById('label-vitality-line2'),
-  valVitalityLine2: document.getElementById('val-vitality-line2'),
-  vitalityAreaLine1: document.getElementById('vitality-area-line1'),
-  vitalityAreaLine2: document.getElementById('vitality-area-line2'),
-  vitalityStrokeLine1: document.getElementById('vitality-stroke-line1'),
-  vitalityStrokeLine2: document.getElementById('vitality-stroke-line2'),
+  modalChallenge: $('modal-challenge-backdrop'),
+  modalChallengeClose: $('modal-challenge-close'),
+  modalChallengeCancel: $('modal-challenge-cancel'),
+  btnInject: $('btn-inject-selected-fault'),
+  activeFaultsList: $('modal-active-faults-list'),
+  btnClearAllFaults: $('btn-clear-all-faults'),
+  faultOpts: document.querySelectorAll('.fault-opt'),
 
-  // Farm Status: AI Autopilot & PLC Safety Ledger
-  ledgerStatsSubtext: document.getElementById('ledger-stats-subtext'),
-  ledgerTableBody: document.getElementById('ledger-table-body'),
-
-  // Gully Matrix & 2.5D
-  matrixGridContainer: document.getElementById('matrix-grid-container'),
-  svgIsometricRack: document.getElementById('svg-isometric-rack'),
-  proofTableBody: document.getElementById('proof-table-body'),
-
-  // Modals
-  modalChallengeBackdrop: document.getElementById('modal-challenge-backdrop'),
-  modalChallengeClose: document.getElementById('modal-challenge-close'),
-  modalChallengeCancel: document.getElementById('modal-challenge-cancel'),
-  btnInjectSelectedFault: document.getElementById('btn-inject-selected-fault'),
-  modalActiveFaultsList: document.getElementById('modal-active-faults-list'),
-  btnClearAllFaults: document.getElementById('btn-clear-all-faults'),
-  faultOptionBtns: document.querySelectorAll('.fault-option-btn'),
-
-  btnOpenLayoutModal: document.getElementById('btn-open-layout-modal'),
-  modalLayoutBackdrop: document.getElementById('modal-layout-backdrop'),
-  modalLayoutClose: document.getElementById('modal-layout-close'),
-  modalLayoutCancel: document.getElementById('modal-layout-cancel'),
-  btnApplyCustomFarm: document.getElementById('btn-apply-custom-farm'),
-  sliderChannelCount: document.getElementById('slider-channel-count'),
-  sliderPlantsPerChannel: document.getElementById('slider-plants-per-channel'),
-  sliderTankVolume: document.getElementById('slider-tank-volume'),
-  sliderPumpFlow: document.getElementById('slider-pump-flow'),
-  valChannelCount: document.getElementById('val-channel-count'),
-  valPlantsPerChannel: document.getElementById('val-plants-per-channel'),
-  valTankVolume: document.getElementById('val-tank-volume'),
-  valPumpFlow: document.getElementById('val-pump-flow'),
+  btnOpenLayout: $('btn-open-layout-modal'),
+  modalLayout: $('modal-layout-backdrop'),
+  modalLayoutClose: $('modal-layout-close'),
+  modalLayoutCancel: $('modal-layout-cancel'),
+  btnApplyLayout: $('btn-apply-custom-farm'),
+  sliderChannels: $('slider-channel-count'),
+  sliderPlants: $('slider-plants-per-channel'),
+  sliderVolume: $('slider-tank-volume'),
+  sliderFlow: $('slider-pump-flow'),
+  valChannels: $('val-channel-count'),
+  valPlants: $('val-plants-per-channel'),
+  valVolume: $('val-tank-volume'),
+  valFlow: $('val-pump-flow'),
 };
 
-// --- Initialization ---
+// --- Init ---
 async function init() {
-  bindNavigationEvents();
-  bindControlEvents();
-  bindModalEvents();
-  bindSessionEvents();
-
-  // Load default Egyptian preset EXP.2
+  bindNavigation();
+  bindControls();
+  bindModals();
+  bindSession();
+  session.setSpeed('1x');
+  window.addEventListener('resize', () => {
+    renderVitalities();
+    renderActivity();
+  });
   await loadPreset(currentPreset);
 }
 
-// --- Navigation & View Switching ---
-function bindNavigationEvents() {
-  el.railBtns.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const viewKey = btn.dataset.view;
-      switchView(viewKey);
-    });
-  });
-
-  // Logo click returns to Farm Status
-  document.getElementById('brand-logo')?.addEventListener('click', () => {
-    switchView('farm-status');
-  });
+// --- Navigation ---
+function bindNavigation() {
+  el.railBtns.forEach((btn) => btn.addEventListener('click', () => switchView(btn.dataset.view)));
+  $('brand-logo')?.addEventListener('click', () => switchView('farm-status'));
 }
 
-function switchView(viewKey) {
-  if (!VIEW_METADATA[viewKey]) return;
-  activeView = viewKey;
-
-  // Update Rail active classes
-  el.railBtns.forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.view === viewKey);
-  });
-
-  // Update Workspace Header Titles
-  el.viewTitle.textContent = VIEW_METADATA[viewKey].title;
-  el.viewSubtitle.textContent = VIEW_METADATA[viewKey].subtitle;
-
-  // Update Active View Panel
-  el.views.forEach((v) => {
-    v.classList.toggle('active-view', v.id === `view-${viewKey}`);
-  });
-
-  // Trigger view-specific render
-  if (viewKey === 'gully-matrix') renderGullyMatrix();
-  if (viewKey === 'isometric-rack') renderIsometricRack();
-  if (viewKey === 'judge-proof') renderProofTable();
+function switchView(key) {
+  if (!VIEW_TITLES[key]) return;
+  activeView = key;
+  el.railBtns.forEach((b) => b.classList.toggle('active', b.dataset.view === key));
+  el.views.forEach((v) => v.classList.toggle('active', v.id === `view-${key}`));
+  el.viewTitle.textContent = VIEW_TITLES[key];
+  updateAllUI();
 }
 
-// --- Simulation Controls & Header Events ---
-function bindControlEvents() {
-  // Season Picker
+// --- Controls ---
+function bindControls() {
   el.seasonPicker.addEventListener('change', async (e) => {
-    const val = e.target.value;
-    if (val === 'custom') {
-      openCustomLayoutModal();
-    } else {
-      const p = getPreset(val);
-      if (p) {
-        currentPreset = p;
-        await loadPreset(p);
-      }
-    }
+    if (e.target.value === 'custom') return openLayoutModal();
+    currentPreset = getPreset(e.target.value);
+    await loadPreset(currentPreset);
   });
 
-  // Play / Pause Toggle
-  el.btnPlayPause.addEventListener('click', () => {
-    if (session.playing) {
-      session.pause();
-    } else {
-      session.play();
-    }
-    updatePlayPauseUI();
+  el.btnPlay.addEventListener('click', () => {
+    session.playing ? session.pause() : session.play();
+    updatePlayUI();
   });
 
-  // 1x / 10x Speed Toggle
-  el.btnSpeedToggle.addEventListener('click', () => {
-    isSpeed10x = !isSpeed10x;
-    session.setSpeed(isSpeed10x ? '10x' : '1x');
-    el.btnSpeedLabel.textContent = isSpeed10x ? '10x' : '1x';
-    el.btnSpeedToggle.classList.toggle('active', isSpeed10x);
-  });
+  el.speedBtns.forEach((btn) =>
+    btn.addEventListener('click', () => {
+      session.setSpeed(btn.dataset.speed);
+      el.speedBtns.forEach((b) => b.classList.toggle('active', b === btn));
+    })
+  );
 
-  // +1 Day Step
   el.btnStepDay.addEventListener('click', async () => {
     el.btnStepDay.disabled = true;
-    el.btnStepDay.style.opacity = '0.6';
     try {
       await session.advanceDay();
     } finally {
       el.btnStepDay.disabled = false;
-      el.btnStepDay.style.opacity = '1';
     }
   });
 
-  // Copy Sim ID
-  el.infoSimId.addEventListener('click', () => {
-    if (session.simId) {
-      navigator.clipboard.writeText(session.simId);
-      const original = el.infoSimId.textContent;
-      el.infoSimId.textContent = 'Copied!';
-      setTimeout(() => { el.infoSimId.textContent = original; }, 1200);
-    }
+  el.simMeta.addEventListener('click', () => {
+    if (!session.simId) return;
+    navigator.clipboard?.writeText(session.simId);
+    const prev = el.simMeta.textContent;
+    el.simMeta.textContent = `COPIED ${session.simId}`;
+    setTimeout(() => (el.simMeta.textContent = prev), 1200);
   });
 
-  // Recent Alerts Filter Tabs
-  el.alertFilterTabs.forEach((tab) => {
+  el.alertTabs.forEach((tab) =>
     tab.addEventListener('click', () => {
-      el.alertFilterTabs.forEach((t) => t.classList.remove('active'));
-      tab.classList.add('active');
+      el.alertTabs.forEach((t) => t.classList.toggle('active', t === tab));
       activeAlertTab = tab.dataset.tab;
-      updateRecentAlertsCard();
-    });
-  });
+      renderAlerts();
+    })
+  );
 
-  // Timeframe dropdown for Activity Bar Chart
-  el.dosingTimeframeSelect?.addEventListener('change', (e) => {
+  el.dosingSelect.addEventListener('change', (e) => {
     selectedDosingTimeframe = e.target.value;
-    renderDosingBarChart();
+    renderActivity();
   });
 
-  // Metric selector dropdown for Vitalities Area Spline Chart
-  el.vitalityMetricSelect?.addEventListener('change', (e) => {
+  el.vitalSelect.addEventListener('change', (e) => {
     selectedVitalityMetric = e.target.value;
-    renderVitalitiesAreaSpline();
+    renderVitalities();
   });
 }
 
-function updatePlayPauseUI() {
-  if (session.playing) {
-    el.btnPlayIcon.textContent = '⏸';
-    el.btnPlayLabel.textContent = 'Pause';
-    el.btnPlayPause.classList.add('active');
-  } else {
-    el.btnPlayIcon.textContent = '▶';
-    el.btnPlayLabel.textContent = 'Play';
-    el.btnPlayPause.classList.remove('active');
-  }
+function updatePlayUI() {
+  const on = session.playing;
+  el.icoPlay.classList.toggle('hidden', on);
+  el.icoPause.classList.toggle('hidden', !on);
+  el.btnPlayLabel.textContent = on ? 'PAUSE' : 'RUN';
+  el.btnPlay.classList.toggle('is-running', on);
 }
 
-// --- Preset Loading ---
+// --- Preset loading ---
+function resetDoseTracking() {
+  cumulativeDoses = { a: 0, b: 0, acid: 0, base: 0, water: 0 };
+  lastDose = { a: 0, b: 0, acid: 0, base: 0, water: 0 };
+}
+
 async function loadPreset(preset) {
   try {
     session.pause();
-    updatePlayPauseUI();
-    el.chipActivePreset.textContent = preset.presetId.toUpperCase();
-    el.infoFarmPreset.textContent = preset.title;
-
+    updatePlayUI();
+    resetDoseTracking();
     await session.start(preset);
+    el.railLinkDot.className = 'dot ok';
     updateAllUI();
   } catch (err) {
     console.error('Failed to start farm simulation:', err);
+    el.railLinkDot.className = 'dot crit';
+    el.simMeta.textContent = 'BACKEND UNREACHABLE · http://localhost:8080';
   }
 }
 
-// --- Twin Session Event Handlers ---
-function bindSessionEvents() {
+// --- Session events ---
+function bindSession() {
   session.on('update', () => updateAllUI());
   session.on('started', () => updateAllUI());
-  session.on('dose', (cmd) => onDoseActuated(cmd));
-  session.on('rejected', (rec) => onDoseRejected(rec));
+  session.on('dose', (cmd) => onDose(cmd));
+  session.on('rejected', (rec) => console.warn('PLC Guardian blocked command:', rec));
   session.on('fault', () => updateAllUI());
+  session.on('error', (err) => {
+    console.error(err);
+    el.railLinkDot.className = 'dot crit';
+    updatePlayUI();
+  });
   session.on('harvest', () => {
-    updatePlayPauseUI();
-    alert(`🎉 Season Complete! Crop reached target harvest maturity on Day ${Math.round(session.simDays)}.`);
+    updatePlayUI();
+    alert(`Season complete. Harvest reached on day ${Math.round(session.simDays)}.`);
   });
 }
 
-// --- Dosing Skid Live Animations & Cumulative Tracker ---
-function onDoseActuated(cmd) {
-  if (cmd.dose_stock_a_ml) {
-    cumulativeDoses.a += cmd.dose_stock_a_ml;
-    lastDoseAmounts.a = cmd.dose_stock_a_ml;
-    triggerVerticalPillPulse('a', cmd.dose_stock_a_ml);
-  }
-  if (cmd.dose_stock_b_ml) {
-    cumulativeDoses.b += cmd.dose_stock_b_ml;
-    lastDoseAmounts.b = cmd.dose_stock_b_ml;
-    triggerVerticalPillPulse('b', cmd.dose_stock_b_ml);
-  }
-  if (cmd.dose_acid_ml) {
-    cumulativeDoses.acid += cmd.dose_acid_ml;
-    lastDoseAmounts.acid = cmd.dose_acid_ml;
-    triggerVerticalPillPulse('acid', cmd.dose_acid_ml);
-  }
-  if (cmd.dose_base_ml) {
-    cumulativeDoses.base += cmd.dose_base_ml;
-    lastDoseAmounts.base = cmd.dose_base_ml;
-    triggerVerticalPillPulse('base', cmd.dose_base_ml);
-  }
-  if (cmd.refill_water_l) {
-    cumulativeDoses.water += cmd.refill_water_l;
-    lastDoseAmounts.water = cmd.refill_water_l;
-    triggerVerticalPillPulse('water', cmd.refill_water_l);
-  }
+function onDose(cmd) {
+  const hits = [];
+  if (cmd.dose_stock_a_ml) { cumulativeDoses.a += cmd.dose_stock_a_ml; lastDose.a = cmd.dose_stock_a_ml; hits.push(['a', `+${fmtNum(cmd.dose_stock_a_ml, 1)} mL`]); }
+  if (cmd.dose_stock_b_ml) { cumulativeDoses.b += cmd.dose_stock_b_ml; lastDose.b = cmd.dose_stock_b_ml; hits.push(['b', `+${fmtNum(cmd.dose_stock_b_ml, 1)} mL`]); }
+  if (cmd.dose_acid_ml) { cumulativeDoses.acid += cmd.dose_acid_ml; lastDose.acid = cmd.dose_acid_ml; hits.push(['ph', `HNO₃ +${fmtNum(cmd.dose_acid_ml, 1)} mL`]); }
+  if (cmd.dose_base_ml) { cumulativeDoses.base += cmd.dose_base_ml; lastDose.base = cmd.dose_base_ml; hits.push(['ph', `KOH +${fmtNum(cmd.dose_base_ml, 1)} mL`]); }
+  if (cmd.refill_water_l) { cumulativeDoses.water += cmd.refill_water_l; lastDose.water = cmd.refill_water_l; hits.push(['water', `REFILL +${fmtNum(cmd.refill_water_l, 1)} L`]); }
 
-  updateVerticalPillGauges();
-  renderDosingBarChart();
+  renderLevels();
+  for (const [key, text] of hits) flashLevel(key, text);
+  renderActivity();
 }
 
-function triggerVerticalPillPulse(stockKey, amount) {
-  const map = {
-    a: { track: el.trackStockA, callout: el.calloutStockA, msg: `🤖 AI Dosed +${amount.toFixed(1)} mL` },
-    b: { track: el.trackStockB, callout: el.calloutStockB, msg: `🤖 AI Dosed +${amount.toFixed(1)} mL` },
-    acid: { track: el.trackStockPh, callout: el.calloutStockPh, msg: `🤖 AI Dosed +${amount.toFixed(1)} mL` },
-    base: { track: el.trackStockPh, callout: el.calloutStockPh, msg: `🤖 AI Dosed +${amount.toFixed(1)} mL` },
-    water: { track: el.trackWaterTank, callout: el.calloutWaterTank, msg: `🤖 AI Refilled +${amount.toFixed(1)} L` },
-  };
-
-  const target = map[stockKey];
-  if (!target || !target.track) return;
-
-  target.track.classList.add('pulsing');
-  if (target.callout) {
-    target.callout.textContent = target.msg;
-    target.callout.classList.add('active');
-  }
-
-  clearTimeout(activeDosingTimeouts[stockKey]);
-  activeDosingTimeouts[stockKey] = setTimeout(() => {
-    target.track.classList.remove('pulsing');
-    if (target.callout) target.callout.classList.remove('active');
+function flashLevel(key, text) {
+  const l = el.lvl[key];
+  if (!l) return;
+  l.row.classList.add('dosing');
+  l.state.textContent = `DOSING ${text}`;
+  clearTimeout(dosingTimeouts[key]);
+  dosingTimeouts[key] = setTimeout(() => {
+    l.row.classList.remove('dosing');
+    renderLevels();
   }, 3500);
 }
 
-function onDoseRejected(rec) {
-  console.warn('PLC Guardian blocked unsafe command:', rec);
-}
-
-// --- Main UI Updater ---
-function updateAllUI() {
-  const simSec = session.status?.sim_time_sec || 0;
-  const simDays = session.simDays;
-  const seasonDays = session.seasonDays;
-
-  // 1. Header Clock Time Bar (Day X of 30 · HH:MM)
-  const dayNum = Math.floor(simDays);
-  const hourNum = Math.floor((simSec % 86400) / 3600);
-  const minNum = Math.floor((simSec % 3600) / 60);
-  const hh = String(hourNum).padStart(2, '0');
-  const mm = String(minNum).padStart(2, '0');
-  el.simClockTime.textContent = `Day ${dayNum} of ${seasonDays} · ${hh}:${mm}`;
-
-  // 2. Quick Details: Active Controller & Season Info
-  el.infoSimId.textContent = session.simId ? `sim-${session.simId.slice(0, 8)}...` : 'Connecting...';
-  const rejectedCount = session.commands.filter((c) => c.status !== 'accepted').length;
-  el.infoPlcStatus.textContent = rejectedCount === 0 ? 'Armed (100% Verified)' : `Blocked ${rejectedCount} Unsafe Actions`;
-
-  // 3. Quick Details: Plants & Harvest Readiness (Circular SVG Ring)
-  const totalPlants = plantCount(session.design || currentPreset);
-  el.plantsTotalCount.textContent = `Lettuce: ${totalPlants} plants`;
-  const remainingDays = Math.max(0, Math.ceil(seasonDays - simDays));
-  el.harvestDayEta.textContent = remainingDays === 0 ? 'Harvest Ready Today!' : `Nearest harvest: Day ${seasonDays} (${remainingDays}d)`;
-
-  // Stage name
-  let stageName = 'Stage 1 · Germination';
-  if (simDays >= 6) stageName = 'Stage 2 · Seedling';
-  if (simDays >= 14) stageName = 'Stage 3 · Vegetative Growth';
-  if (simDays >= 25) stageName = 'Stage 4 · Canopy Expansion';
-  el.growthStageTag.textContent = stageName;
-
-  // SVG Progress Ring (circumference = 163.36)
-  const circ = 163.36;
-  const fraction = Math.min(1.0, Math.max(0, simDays / seasonDays));
-  el.harvestProgressCircle.style.strokeDashoffset = String(circ * (1.0 - fraction));
-
-  // 4. Telemetry Readings
+// --- Derived telemetry ---
+function telemetry() {
   const rd = session.readings;
   const gt = session.gt || {};
-
-  const ecVal = rd.EC ?? gt.ec25_ds_m ?? 2.0;
-  const phVal = rd.pH ?? gt.ph ?? 5.95;
-  const doTankVal = gt.c_do_res_mg_l ?? 7.9;
-  const doOutletVal = rd.DO ?? gt.c_do_ch_out_mg_l ?? 6.8;
-  const tAirVal = rd.T_air ?? 23.4;
-  const rhVal = rd.RH ?? 64.0;
-  const tWaterVal = rd.T_w ?? (gt.t_w_k ? gt.t_w_k - 273.15 : 21.2);
-
-  // Calculate VPD in kPa
-  const es = 0.61078 * Math.exp((17.27 * tAirVal) / (tAirVal + 237.3));
-  const ea = es * (rhVal / 100.0);
-  const vpdVal = Math.max(0.1, es - ea);
-
-  // Rated flow
-  const flowVal = session.spec?.pump?.rated_flow_l_min ?? 3.0;
-
-  // Update Quick Details Telemetry Table
-  el.liveEc.textContent = `${ecVal.toFixed(2)} mS/cm`;
-  el.livePh.textContent = phVal.toFixed(2);
-  el.liveDoTank.textContent = `${doTankVal.toFixed(1)} mg/L`;
-  el.liveDoOutlet.textContent = `${doOutletVal.toFixed(1)} mg/L`;
-  el.liveFlow.textContent = `${flowVal.toFixed(1)} L/min`;
-  el.liveVpd.textContent = `${vpdVal.toFixed(2)} kPa`;
-
-  // 5. Update Quick Details Alerts Summary
-  updateAlertsSummary();
-
-  // 6. Farm Status (View 1) Dedicated Updaters
-  updateCapacityHarvestDonut();
-  updateVerticalPillGauges();
-  updateRecentAlertsCard();
-  renderDosingBarChart();
-  renderVitalitiesAreaSpline();
-  renderSafetyLedgerTable();
-
-  // 7. Update Other Workspace Views if active
-  if (activeView === 'gully-matrix') renderGullyMatrix();
-  if (activeView === 'isometric-rack') renderIsometricRack();
-  if (activeView === 'judge-proof') renderProofTable();
-}
-
-// --- Alerts Summary Block Updater (Quick Details) ---
-function updateAlertsSummary() {
-  const alerts = session.alerts || [];
-
-  const criticals = alerts.filter((a) => a.severity === 'critical');
-  const warnings = alerts.filter((a) => a.severity === 'warning');
-  const infos = alerts.filter((a) => a.severity === 'info' || !a.severity);
-
-  // Critical Row
-  el.alertCountCritical.textContent = criticals.length;
-  if (criticals.length > 0) {
-    const latest = criticals[criticals.length - 1];
-    el.alertHeadlineCritical.textContent = `${latest.component_id || 'Hardware'}: ${latest.message}`;
-    el.alertHeadlineCritical.style.color = 'var(--status-critical)';
-  } else {
-    el.alertHeadlineCritical.textContent = 'No active hardware failures';
-    el.alertHeadlineCritical.style.color = 'var(--text-secondary)';
-  }
-
-  // Warning Row
-  el.alertCountWarning.textContent = warnings.length;
-  if (warnings.length > 0) {
-    const latest = warnings[warnings.length - 1];
-    el.alertHeadlineWarning.textContent = `${latest.component_id || 'Sensor'}: ${latest.message}`;
-    el.alertHeadlineWarning.style.color = 'var(--status-warning)';
-  } else {
-    el.alertHeadlineWarning.textContent = 'Sensor probes within ±2% calibration';
-    el.alertHeadlineWarning.style.color = 'var(--text-secondary)';
-  }
-
-  // Info Row
-  const commands = session.commands || [];
-  const acceptedCommands = commands.filter((c) => c.status === 'accepted');
-  el.alertCountInfo.textContent = acceptedCommands.length + infos.length;
-  if (acceptedCommands.length > 0) {
-    const latest = acceptedCommands[acceptedCommands.length - 1];
-    const chemDetail = latest.dose_stock_a_ml ? `Dosed ${latest.dose_stock_a_ml}mL Stock A` : 'Routine actuation';
-    el.alertHeadlineInfo.textContent = `PLC Guardian: Verified ${chemDetail}`;
-  } else {
-    el.alertHeadlineInfo.textContent = 'System armed and observing sensors';
-  }
-}
-
-// --- VIEW 1 (Top-Left): Capacity & Harvest Readiness Donut ---
-function updateCapacityHarvestDonut() {
-  if (!el.donutActiveGullies) return;
-
-  const activeGullies = session.spec?.channels?.length ?? 2;
-  const totalPlants = plantCount(session.design || currentPreset);
-  const fw = session.gt?.shoot_fw_g_per_plant ?? 5.0;
-  const target = currentPreset.realHarvest?.mean ?? 250.0;
-
-  el.donutActiveGullies.textContent = activeGullies;
-  el.donutPortsFilled.textContent = `${totalPlants} / ${totalPlants}`;
-  el.donutBiomassTarget.textContent = `${target.toFixed(1)} g`;
-
-  // Crop Harvest Progress (% toward 250g harvest weight)
-  const ratio = Math.min(1.0, Math.max(0.02, fw / target));
-  const pct = Math.min(100, Math.round(ratio * 100));
-
-  el.donutCenterPct.textContent = `${pct}%`;
-  el.donutCenterGrams.textContent = `${fw.toFixed(1)} g / ${target.toFixed(0)} g`;
-
-  // Circumference = 2 * PI * 48 = 301.59
-  const circ = 301.59;
-  const offset = circ * (1.0 - ratio);
-  el.harvestDonutProgress.style.strokeDashoffset = String(offset);
-
-  // Healthy vs Stressed ports
-  const stress = session.gt?.stress_factor ?? 1.0;
-  const stressed = stress < 0.85 ? Math.max(1, Math.round(totalPlants * (1.0 - stress))) : 0;
-  const healthy = Math.max(0, totalPlants - stressed);
-
-  el.legendHealthyCount.textContent = healthy;
-  el.legendStressedCount.textContent = stressed;
-}
-
-// --- VIEW 1 (Top-Center): Autonomous AI Dosing & Reservoir Pill Gauges ---
-function updateVerticalPillGauges() {
-  if (!el.fillVerticalStockA) return;
-
-  // Stock A
-  const pctA = Math.max(15, Math.min(100, Math.round(100 - (cumulativeDoses.a / 800) * 100)));
-  el.fillVerticalStockA.style.height = `${pctA}%`;
-  el.pctVerticalStockA.textContent = `${pctA}%`;
-  el.badgeVerticalStockA.textContent = lastDoseAmounts.a ? `+${lastDoseAmounts.a.toFixed(1)} mL` : 'Standby';
-
-  // Stock B
-  const pctB = Math.max(15, Math.min(100, Math.round(100 - (cumulativeDoses.b / 800) * 100)));
-  el.fillVerticalStockB.style.height = `${pctB}%`;
-  el.pctVerticalStockB.textContent = `${pctB}%`;
-  el.badgeVerticalStockB.textContent = lastDoseAmounts.b ? `+${lastDoseAmounts.b.toFixed(1)} mL` : 'Standby';
-
-  // pH Down / Up
-  const totalBuffer = cumulativeDoses.acid + cumulativeDoses.base;
-  const pctPh = Math.max(20, Math.min(100, Math.round(100 - (totalBuffer / 350) * 100)));
-  el.fillVerticalStockPh.style.height = `${pctPh}%`;
-  el.pctVerticalStockPh.textContent = `${pctPh}%`;
-  el.badgeVerticalStockPh.textContent = lastDoseAmounts.acid ? `-${lastDoseAmounts.acid.toFixed(1)} mL` : 'HNO₃ / KOH';
-
-  // Water Tank
-  const vRes = session.gt?.v_res_l ?? 98.4;
-  const maxL = session.spec?.reservoir?.max_volume_l ?? 120.0;
-  const pctWater = Math.max(10, Math.min(100, Math.round((vRes / maxL) * 100)));
-  el.fillVerticalWaterTank.style.height = `${pctWater}%`;
-  el.pctVerticalWaterTank.textContent = `${pctWater}%`;
-  el.badgeVerticalWaterTank.textContent = `${vRes.toFixed(1)} L`;
-}
-
-// --- VIEW 1 (Top-Right): Floating "Recent Alerts & AI Detections" Card ---
-function updateRecentAlertsCard() {
-  if (!el.alertsFeedContainer) return;
-
-  const alerts = session.alerts || [];
-
-  // Filter based on active tab
-  let filtered = alerts;
-  if (activeAlertTab === 'farm') {
-    filtered = alerts.filter(
-      (a) =>
-        a.component_id?.includes('pump') ||
-        a.component_id?.includes('aer') ||
-        a.component_id?.includes('res') ||
-        a.code?.includes('PUMP') ||
-        a.code?.includes('AERATION') ||
-        a.code?.includes('LEAK')
-    );
-  } else if (activeAlertTab === 'sensors') {
-    filtered = alerts.filter(
-      (a) =>
-        a.component_id?.includes('sen-') ||
-        a.component_id?.includes('probe') ||
-        a.code?.includes('DRIFT') ||
-        a.code?.includes('CALIBRATION')
-    );
-  } else if (activeAlertTab === 'plants') {
-    filtered = alerts.filter(
-      (a) =>
-        a.component_id?.includes('ch-') ||
-        a.code?.includes('STRESS') ||
-        a.code?.includes('HEAT') ||
-        a.code?.includes('NUTRIENT')
-    );
-  }
-
-  const simSec = session.status?.sim_time_sec || 0;
-  const dayNum = Math.floor(simSec / 86400);
-  const hourNum = Math.floor((simSec % 86400) / 3600);
-  const minNum = Math.floor((simSec % 3600) / 60);
-  const timeStr = `Day ${dayNum} · ${String(hourNum).padStart(2, '0')}:${String(minNum).padStart(2, '0')}`;
-
-  if (filtered.length === 0) {
-    el.alertsFeedContainer.innerHTML = `
-      <div class="alert-pill-expanded">
-        <div class="alert-pill-top">
-          <div class="alert-pill-title-row">
-            <span class="alert-status-dot info"></span>
-            <span class="alert-pill-title">All ${activeAlertTab.toUpperCase()} Systems Nominal</span>
-          </div>
-          <span class="alert-pill-time">${timeStr}</span>
-        </div>
-        <p class="alert-pill-desc">
-          Sensors operating within ±2% tolerance. Mathematical observer running closed-loop verification against Benson-Krause saturation physics.
-        </p>
-      </div>
-      <div class="alert-pill-compact">
-        <div style="display:flex; align-items:center; gap:6px;">
-          <span class="alert-status-dot info"></span>
-          <span style="font-weight:600; color:var(--text-primary);">PLC Safety Interlock</span>
-        </div>
-        <span style="color:var(--text-secondary); font-size:10px;">Armed & Active</span>
-      </div>
-    `;
-    return;
-  }
-
-  // Top expanded card (most recent)
-  const topAlert = filtered[filtered.length - 1];
-  const topDay = Math.floor((topAlert.sim_time_sec || simSec) / 86400);
-  const topH = Math.floor(((topAlert.sim_time_sec || simSec) % 86400) / 3600);
-  const topM = Math.floor(((topAlert.sim_time_sec || simSec) % 3600) / 60);
-  const topTime = `Day ${topDay} · ${String(topH).padStart(2, '0')}:${String(topM).padStart(2, '0')}`;
-
-  const dotClass = topAlert.severity === 'critical' ? 'critical' : topAlert.severity === 'warning' ? 'warning' : 'info';
-
-  const friendlyTitle =
-    topAlert.code === 'IMPLIED_PUMP_OR_AERATION_FAULT'
-      ? 'Implied Pump Flow Degradation'
-      : topAlert.code === 'PH_PROBE_DRIFT_SUSPECTED'
-      ? 'pH Probe Drift Detected'
-      : topAlert.code === 'RESERVOIR_LEAK_SUSPECTED'
-      ? 'Physical Reservoir Leak Inferred'
-      : topAlert.code === 'HEAT_STRESS_EVENT'
-      ? 'Extreme Climate Heatwave Alert'
-      : topAlert.code || 'AI Anomaly Detected';
-
-  const remaining = [...filtered.slice(0, -1)].reverse().slice(0, 3);
-
-  const compactRows = remaining
-    .map((a) => {
-      const aD = Math.floor((a.sim_time_sec || simSec) / 86400);
-      const aH = Math.floor(((a.sim_time_sec || simSec) % 86400) / 3600);
-      const aM = Math.floor(((a.sim_time_sec || simSec) % 3600) / 60);
-      const dot = a.severity === 'critical' ? 'critical' : a.severity === 'warning' ? 'warning' : 'info';
-      return `
-      <div class="alert-pill-compact">
-        <div style="display:flex; align-items:center; gap:6px;">
-          <span class="alert-status-dot ${dot}"></span>
-          <span style="font-weight:600; color:var(--text-primary);">${a.component_id || 'system'}: ${a.code}</span>
-        </div>
-        <span style="color:var(--text-secondary); font-size:10px;">Day ${aD} · ${String(aH).padStart(2, '0')}:${String(aM).padStart(2, '0')}</span>
-      </div>
-    `;
-    })
-    .join('');
-
-  el.alertsFeedContainer.innerHTML = `
-    <div class="alert-pill-expanded">
-      <div class="alert-pill-top">
-        <div class="alert-pill-title-row">
-          <span class="alert-status-dot ${dotClass}"></span>
-          <span class="alert-pill-title">${friendlyTitle}</span>
-        </div>
-        <span class="alert-pill-time">${topTime}</span>
-      </div>
-      <p class="alert-pill-desc">${topAlert.message || 'Anomaly inferred from divergence between physical sensor reading and digital twin state.'}</p>
-    </div>
-    ${compactRows}
-  `;
-}
-
-// --- VIEW 1 (Bottom-Left Top): "AI Dosing & Actuation Activity" Vertical Bar Chart ---
-function renderDosingBarChart() {
-  if (!el.svgDosingBarChart) return;
-
-  const commands = session.commands || [];
-  const simSec = session.status?.sim_time_sec || 0;
-
-  // ViewBox: 540 x 100.
-  const chartW = 540;
-  const chartH = 100;
-  const baselineY = 78;
-
-  let bins = [];
-  let numBins = selectedDosingTimeframe === '24h' ? 24 : 30;
-
-  if (selectedDosingTimeframe === '24h') {
-    // 24 hours
-    bins = Array.from({ length: 24 }, (_, i) => ({ label: `${i}h`, ml: 0, refills: 0 }));
-    for (const cmd of commands) {
-      if (cmd.sim_time_sec >= simSec - 86400) {
-        const hour = Math.floor((cmd.sim_time_sec % 86400) / 3600);
-        const idx = Math.min(23, Math.max(0, hour));
-        const ml = (cmd.dose_stock_a_ml || 0) + (cmd.dose_stock_b_ml || 0) + (cmd.dose_acid_ml || 0) + (cmd.dose_base_ml || 0);
-        bins[idx].ml += ml;
-        bins[idx].refills += cmd.refill_water_l || 0;
-      }
-    }
-  } else {
-    // 30 days
-    bins = Array.from({ length: 30 }, (_, i) => ({ label: `D${i + 1}`, ml: 0, refills: 0 }));
-    for (const cmd of commands) {
-      const day = Math.min(29, Math.max(0, Math.floor(cmd.sim_time_sec / 86400)));
-      const ml = (cmd.dose_stock_a_ml || 0) + (cmd.dose_stock_b_ml || 0) + (cmd.dose_acid_ml || 0) + (cmd.dose_base_ml || 0);
-      bins[day].ml += ml;
-      bins[day].refills += cmd.refill_water_l || 0;
-    }
-  }
-
-  // If no doses recorded yet, inject nominal baseline dosing pulse
-  const maxDose = Math.max(15, ...bins.map((b) => b.ml));
-  const barWidth = Math.max(4, Math.floor((chartW - 60) / numBins) - 4);
-  const startX = 30;
-
-  const barElements = bins
-    .map((b, i) => {
-      const x = startX + i * ((chartW - 60) / numBins);
-      // Normalized height up to 60px
-      const displayVal = b.ml > 0 ? b.ml : (i % 6 === 0 ? 2.5 : 0.8); // Faint background pulse if idle
-      const barHeight = Math.min(62, Math.max(4, (displayVal / maxDose) * 60));
-      const y = baselineY - barHeight;
-
-      return `
-      <rect
-        x="${x.toFixed(1)}"
-        y="${y.toFixed(1)}"
-        width="${barWidth}"
-        height="${barHeight.toFixed(1)}"
-        rx="3"
-        fill="#4F9DA6"
-        opacity="${b.ml > 0 ? '0.95' : '0.22'}"
-      >
-        <title>${b.label}: ${b.ml > 0 ? `${b.ml.toFixed(1)} mL dosed` : 'Nominal monitoring'}</title>
-      </rect>
-    `;
-    })
-    .join('');
-
-  // Subtle hour/day ticks
-  const tickLabels = selectedDosingTimeframe === '24h'
-    ? `<text x="30" y="93" font-size="9" fill="#7A8B8E" font-weight="600">00:00</text>
-       <text x="160" y="93" font-size="9" fill="#7A8B8E" font-weight="600">06:00</text>
-       <text x="290" y="93" font-size="9" fill="#7A8B8E" font-weight="600">12:00</text>
-       <text x="420" y="93" font-size="9" fill="#7A8B8E" font-weight="600">18:00</text>
-       <text x="500" y="93" font-size="9" fill="#7A8B8E" font-weight="600">Now</text>`
-    : `<text x="30" y="93" font-size="9" fill="#7A8B8E" font-weight="600">Day 1</text>
-       <text x="180" y="93" font-size="9" fill="#7A8B8E" font-weight="600">Day 10</text>
-       <text x="340" y="93" font-size="9" fill="#7A8B8E" font-weight="600">Day 20</text>
-       <text x="490" y="93" font-size="9" fill="#7A8B8E" font-weight="600">Day 30</text>`;
-
-  el.svgDosingBarChart.innerHTML = `
-    <!-- Baseline line -->
-    <line x1="20" y1="${baselineY}" x2="520" y2="${baselineY}" stroke="rgba(18, 91, 99, 0.12)" />
-    ${barElements}
-    ${tickLabels}
-  `;
-}
-
-// --- VIEW 1 (Bottom-Left Floating): "Vitalities (Telemetry vs. Physics Ground Truth)" Smooth Area Spline ---
-function renderVitalitiesAreaSpline() {
-  if (!el.vitalityStrokeLine1) return;
-
-  const rawHistory = session.history || [];
-  // Ensure we have at least 2 points for a curve
-  let history = [...rawHistory];
-  if (history.length === 0) {
-    const rd = session.readings;
-    const gt = session.gt || {};
-    history = [
-      {
-        t: 0,
-        measured: { DO: rd.DO ?? 6.8, EC: rd.EC ?? 2.0, pH: rd.pH ?? 5.95, T_air: rd.T_air ?? 23.4, T_w: 21.2 },
-        doRes: gt.c_do_res_mg_l ?? 7.9,
-        doCh: gt.c_do_ch_out_mg_l ?? 6.8,
-        gtEc: gt.ec25_ds_m ?? 2.0,
-        gtPh: gt.ph ?? 5.95,
-        gtAirT: gt.t_air_c ?? 23.4,
-        gtResT: 21.2,
-      },
-      {
-        t: 3600,
-        measured: { DO: rd.DO ?? 6.8, EC: rd.EC ?? 2.0, pH: rd.pH ?? 5.95, T_air: rd.T_air ?? 23.4, T_w: 21.2 },
-        doRes: gt.c_do_res_mg_l ?? 7.9,
-        doCh: gt.c_do_ch_out_mg_l ?? 6.8,
-        gtEc: gt.ec25_ds_m ?? 2.0,
-        gtPh: gt.ph ?? 5.95,
-        gtAirT: gt.t_air_c ?? 23.4,
-        gtResT: 21.2,
-      },
-    ];
-  } else if (history.length === 1) {
-    history = [{ ...history[0], t: 0 }, history[0]];
-  }
-
-  // ViewBox: 540 x 140. Coordinates: left=20, right=520, top=20, bottom=125.
-  const chartW = 500;
-  const chartH = 105;
-  const x0 = 20;
-  const y0 = 20;
-  const bottomY = y0 + chartH;
-
-  const n = history.length;
-  const getX = (i) => x0 + (i / (n - 1)) * chartW;
-
-  let minVal = 0;
-  let maxVal = 10;
-  let getVal1 = (h) => 0;
-  let getVal2 = (h) => 0;
-  let unit = '';
-  let label1 = '';
-  let label2 = '';
-
-  if (selectedVitalityMetric === 'DO') {
-    minVal = 2.0;
-    maxVal = 10.0;
-    unit = 'mg/L';
-    label1 = 'Tank Inlet / Noisy Sensor:';
-    label2 = 'Gully Outlet / Ground Truth:';
-    getVal1 = (h) => h.measured.DO ?? h.doRes ?? 7.9;
-    getVal2 = (h) => h.doCh ?? 6.8;
-  } else if (selectedVitalityMetric === 'EC') {
-    minVal = 0.5;
-    maxVal = 3.5;
-    unit = 'mS/cm';
-    label1 = 'Noisy EC Probe (sen-ec-1):';
-    label2 = 'Conserved Physics (gt):';
-    getVal1 = (h) => h.measured.EC ?? 2.0;
-    getVal2 = (h) => h.gtEc ?? 2.0;
-  } else if (selectedVitalityMetric === 'pH') {
-    minVal = 4.5;
-    maxVal = 8.5;
-    unit = 'pH';
-    label1 = 'Noisy pH Probe (sen-ph-1):';
-    label2 = 'True Conserved Chemistry:';
-    getVal1 = (h) => h.measured.pH ?? 5.95;
-    getVal2 = (h) => h.gtPh ?? 5.95;
-  } else {
-    // CLIMATE
-    minVal = 15.0;
-    maxVal = 35.0;
-    unit = '°C';
-    label1 = 'Air Temperature Sensor:';
-    label2 = 'Reservoir Water Temp:';
-    getVal1 = (h) => h.measured.T_air ?? 23.4;
-    getVal2 = (h) => h.measured.T_w ?? h.gtResT ?? 21.2;
-  }
-
-  const getY = (val) => {
-    const clamped = Math.min(maxVal, Math.max(minVal, val));
-    return y0 + chartH - ((clamped - minVal) / (maxVal - minVal)) * chartH;
+  const tAir = rd.T_air ?? gt.t_air_c ?? 23.4;
+  const rh = rd.RH ?? gt.rh_pct ?? 64;
+  const es = 0.61078 * Math.exp((17.27 * tAir) / (tAir + 237.3));
+  return {
+    ec: rd.EC ?? gt.ec25_ds_m,
+    ph: rd.pH ?? gt.ph,
+    doTank: gt.c_do_res_mg_l,
+    doOutlet: rd.DO ?? gt.c_do_ch_out_mg_l,
+    flow: session.spec?.pump?.rated_flow_l_min,
+    vpd: Math.max(0, es - es * (rh / 100)),
   };
-
-  // Build points arrays
-  const pts1 = [];
-  const pts2 = [];
-  for (let i = 0; i < n; i++) {
-    const x = getX(i);
-    pts1.push({ x, y: getY(getVal1(history[i])) });
-    pts2.push({ x, y: getY(getVal2(history[i])) });
-  }
-
-  // Generate smooth cubic Bezier path
-  function buildSplinePath(pts) {
-    if (pts.length === 0) return '';
-    let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
-    for (let i = 1; i < pts.length; i++) {
-      const prev = pts[i - 1];
-      const cur = pts[i];
-      const cp1x = prev.x + (cur.x - prev.x) / 2;
-      const cp1y = prev.y;
-      const cp2x = prev.x + (cur.x - prev.x) / 2;
-      const cp2y = cur.y;
-      d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${cur.x.toFixed(1)} ${cur.y.toFixed(1)}`;
-    }
-    return d;
-  }
-
-  const stroke1 = buildSplinePath(pts1);
-  const stroke2 = buildSplinePath(pts2);
-
-  const lastPt = pts1[pts1.length - 1];
-  const firstPt = pts1[0];
-  const area1 = `${stroke1} L ${lastPt.x.toFixed(1)} ${bottomY} L ${firstPt.x.toFixed(1)} ${bottomY} Z`;
-
-  const lastPt2 = pts2[pts2.length - 1];
-  const firstPt2 = pts2[0];
-  const area2 = `${stroke2} L ${lastPt2.x.toFixed(1)} ${bottomY} L ${firstPt2.x.toFixed(1)} ${bottomY} Z`;
-
-  el.vitalityStrokeLine1.setAttribute('d', stroke1);
-  el.vitalityAreaLine1.setAttribute('d', area1);
-  el.vitalityStrokeLine2.setAttribute('d', stroke2);
-  el.vitalityAreaLine2.setAttribute('d', area2);
-
-  // Update Legend Labels & Current Values
-  const latestH = history[history.length - 1];
-  const latestV1 = getVal1(latestH);
-  const latestV2 = getVal2(latestH);
-
-  el.labelVitalityLine1.textContent = label1;
-  el.valVitalityLine1.textContent = `${latestV1.toFixed(2)} ${unit}`;
-  el.labelVitalityLine2.textContent = label2;
-  el.valVitalityLine2.textContent = `${latestV2.toFixed(2)} ${unit}`;
 }
 
-// --- VIEW 1 (Bottom-Right): "AI Autopilot & PLC Safety Ledger" Table ---
-function renderSafetyLedgerTable() {
-  if (!el.ledgerTableBody) return;
+// --- Master render ---
+function updateAllUI() {
+  renderHeader();
+  renderKpis();
+  if (activeView === 'farm-status') {
+    renderBiomass();
+    renderLevels();
+    renderAlerts();
+    renderVitalities();
+    renderActivity();
+    renderLedger();
+  } else if (activeView === 'gully-matrix') renderGullyMatrix();
+  else if (activeView === 'isometric-rack') renderIsometricRack();
+  else if (activeView === 'channel-deepdive') renderTimeline();
+  else if (activeView === 'judge-proof') renderProofTable();
+}
 
-  const commands = session.commands || [];
-  const appliedCount = commands.filter((c) => c.status === 'accepted').length;
-  const rejectedCount = commands.filter((c) => c.status !== 'accepted').length;
+function renderHeader() {
+  const simSec = session.status?.sim_time_sec || 0;
+  const days = session.simDays;
+  const season = session.seasonDays;
+  const stage = stageOf(days);
 
-  el.ledgerStatsSubtext.textContent =
-    commands.length === 0
-      ? 'Awaiting AI actuation commands'
-      : `${appliedCount} Applied · ${rejectedCount} Blocked by Safety Guardian`;
+  el.simClock.textContent = `D${pad2(days)}/${season} · ${pad2((simSec % 86400) / 3600)}:${pad2((simSec % 3600) / 60)}`;
 
-  if (commands.length === 0) {
-    el.ledgerTableBody.innerHTML = `
-      <tr>
-        <td colspan="4" style="text-align: center; color: var(--text-secondary); padding: 24px;">
-          🤖 Autopilot observing sensors · Zero hazardous doses dispatched
-        </td>
-      </tr>
-    `;
+  if (session.simId) {
+    const sid = session.simId.replace(/-/g, '').slice(0, 8).toUpperCase();
+    el.simMeta.textContent = `SIM-${sid} · STAGE ${stage.n} ${stage.name} · HARVEST TARGET: DAY ${season}`;
+  }
+
+  // Autopilot badge
+  const auto = session.autopilotEnabled;
+  el.badgeAutopilot.innerHTML = `<span class="dot ${auto ? 'ok' : 'idle'}"></span>AUTOPILOT · ${auto ? 'ACTIVE' : 'OFF'}`;
+
+  // PLC Guardian badge
+  const cmds = session.commands || [];
+  const blocked = cmds.filter((c) => c.status !== 'accepted').length;
+  const pct = cmds.length ? Math.round(((cmds.length - blocked) / cmds.length) * 100) : 100;
+  el.badgePlc.className = `badge mono${blocked ? ' is-warn' : ''}`;
+  el.badgePlc.innerHTML = blocked
+    ? `<span class="dot warn"></span>PLC GUARDIAN · ${blocked} BLOCKED`
+    : `<span class="dot ok"></span>PLC GUARDIAN · ${pct}% VERIFIED`;
+
+  // Fault button reflects active perturbations
+  const nFaults = session.activeFaults.length;
+  el.btnOpenChallenge.lastChild.textContent = nFaults ? ` Faults · ${nFaults} active` : ' Inject Fault';
+}
+
+function setKpi(node, value, digits, { warn, crit } = {}) {
+  node.textContent = fmtNum(value, digits);
+  const cell = node.closest('.kpi');
+  cell.classList.toggle('is-crit', !!crit);
+  cell.classList.toggle('is-warn', !crit && !!warn);
+}
+
+function renderKpis() {
+  const t = telemetry();
+  setKpi(el.kpiEc, t.ec, 2, { warn: t.ec != null && (t.ec < 1.2 || t.ec > 2.8) });
+  setKpi(el.kpiPh, t.ph, 2, { warn: t.ph != null && (t.ph < 5.5 || t.ph > 6.8) });
+  setKpi(el.kpiDoTank, t.doTank, 1, { warn: t.doTank != null && t.doTank < 6 });
+  setKpi(el.kpiDoOutlet, t.doOutlet, 1, { warn: t.doOutlet != null && t.doOutlet < 5, crit: t.doOutlet != null && t.doOutlet < 4 });
+  setKpi(el.kpiFlow, t.flow, 1);
+  setKpi(el.kpiVpd, t.vpd, 2, { warn: t.vpd > 1.4 || t.vpd < 0.4 });
+}
+
+// --- Biomass & Ports ---
+function renderBiomass() {
+  const gullies = session.spec?.channels?.length ?? currentPreset.channels.count;
+  const plants = plantCount(session.design || currentPreset);
+  const fw = session.gt?.shoot_fw_g_per_plant ?? 0;
+  const target = (session.design || currentPreset).realHarvest?.mean ?? 250;
+  const days = session.simDays;
+  const season = session.seasonDays;
+  const stage = stageOf(days);
+
+  el.bioStage.textContent = `STAGE ${stage.n} · ${stage.name.toUpperCase()}`;
+  el.bioGullies.textContent = gullies;
+  el.bioPorts.textContent = `${plants}/${plants}`;
+  el.bioPlants.textContent = plants;
+  el.bioFw.textContent = fmtNum(fw, 1);
+  el.bioTarget.textContent = fmtNum(target, 1);
+
+  const ratio = clamp(fw / target, 0, 1);
+  const segs = 25;
+  const on = Math.round(ratio * segs);
+  el.bioSegbar.innerHTML = Array.from({ length: segs }, (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('');
+  el.bioPct.textContent = `${fmtNum(ratio * 100, 1)}% OF HARVEST WEIGHT`;
+  el.bioDay.textContent = `D${pad2(days)} / ${season}`;
+
+  const stress = session.gt?.stress_factor ?? 1;
+  const stressed = stress < 0.85 ? clamp(Math.round(plants * (1 - stress)), 1, plants) : 0;
+  el.bioOk.textContent = plants - stressed;
+  el.bioStress.textContent = stressed;
+
+  const shown = Math.min(plants, 96);
+  // Spread stressed ports toward the gully outlets (end of each channel), where DO is lowest.
+  const perCh = Math.max(1, Math.round(plants / gullies));
+  const order = Array.from({ length: shown }, (_, i) => i).sort((x, y) => (y % perCh) - (x % perCh));
+  const stressedSet = new Set(order.slice(0, stressed));
+  el.bioPortGrid.innerHTML = Array.from({ length: shown }, (_, i) =>
+    `<i class="port ${stressedSet.has(i) ? 'stress' : 'ok'}" title="${channelSlot(Math.floor(i / perCh))} · port ${(i % perCh) + 1}"></i>`
+  ).join('');
+}
+
+function channelSlot(idx) {
+  return ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3', 'D1', 'D2', 'D3'][idx] || `CH${idx + 1}`;
+}
+
+// --- Chemical & Tank Levels ---
+function setLevel(key, pct, state) {
+  const l = el.lvl[key];
+  l.fill.style.width = `${pct}%`;
+  l.fill.classList.toggle('low', pct < 25);
+  l.pct.textContent = `${pct}%`;
+  if (!l.row.classList.contains('dosing')) l.state.textContent = state;
+}
+
+function renderLevels() {
+  const pctOf = (used, cap) => clamp(Math.round(100 - (used / cap) * 100), 0, 100);
+
+  setLevel('a', pctOf(cumulativeDoses.a, STOCK_CAPACITY_ML.a), lastDose.a ? `LAST +${fmtNum(lastDose.a, 1)} mL` : 'STANDBY');
+  setLevel('b', pctOf(cumulativeDoses.b, STOCK_CAPACITY_ML.b), lastDose.b ? `LAST +${fmtNum(lastDose.b, 1)} mL` : 'STANDBY');
+  setLevel(
+    'ph',
+    pctOf(cumulativeDoses.acid + cumulativeDoses.base, STOCK_CAPACITY_ML.ph),
+    lastDose.acid || lastDose.base ? `Σ ${fmtNum(cumulativeDoses.acid + cumulativeDoses.base, 1)} mL` : 'STANDBY'
+  );
+
+  const vRes = session.gt?.v_res_l;
+  const maxL = session.spec?.reservoir?.max_volume_l ?? 120;
+  const pctW = vRes == null ? 0 : clamp(Math.round((vRes / maxL) * 100), 0, 100);
+  setLevel('water', pctW, vRes == null ? '— L' : `${fmtNum(vRes, 1)} / ${maxL} L`);
+}
+
+// --- Alerts & Detections ---
+function filterAlerts(alerts) {
+  const has = (a, ...keys) => keys.some((k) => a.component_id?.includes(k) || a.code?.includes(k));
+  switch (activeAlertTab) {
+    case 'farm': return alerts.filter((a) => has(a, 'pump', 'aer', 'res', 'PUMP', 'AERATION', 'LEAK'));
+    case 'sensors': return alerts.filter((a) => has(a, 'sen-', 'probe', 'DRIFT', 'CALIBRATION'));
+    case 'plants': return alerts.filter((a) => has(a, 'ch-', 'stock', 'STRESS', 'HEAT', 'NUTRIENT'));
+    default: return alerts;
+  }
+}
+
+function setPill(node, n) {
+  node.textContent = n;
+  node.parentElement.classList.toggle('has', n > 0);
+}
+
+function renderAlerts() {
+  const alerts = session.alerts || [];
+  setPill(el.cntCrit, alerts.filter((a) => a.severity === 'critical').length);
+  setPill(el.cntWarn, alerts.filter((a) => a.severity === 'warning').length);
+  setPill(el.cntInfo, alerts.filter((a) => a.severity !== 'critical' && a.severity !== 'warning').length);
+
+  const list = filterAlerts(alerts);
+  const now = session.status?.sim_time_sec || 0;
+  const sevDot = (s) => (s === 'critical' ? 'crit' : s === 'warning' ? 'warn' : 'idle');
+
+  if (list.length === 0) {
+    const faults = session.activeFaults.length;
+    el.alertsFeed.innerHTML = `
+      <div class="feed-item expanded">
+        <span class="dot ok"></span>
+        <span class="feed-title">No ${activeAlertTab === 'open' ? 'open' : activeAlertTab} detections</span>
+        <span class="feed-time mono">${fmtSimTime(now)}</span>
+        <span class="feed-desc">Residual observer comparing probe readings against twin physics. All residuals inside detection thresholds.</span>
+      </div>
+      <div class="feed-item"><span class="dot ok"></span><span class="feed-title">PLC safety interlock armed</span><span class="feed-time mono">NOMINAL</span></div>
+      <div class="feed-item"><span class="dot ${faults ? 'warn' : 'idle'}"></span><span class="feed-title">Injected perturbations</span><span class="feed-time mono">${faults} ACTIVE</span></div>`;
     return;
   }
 
-  const recent = [...commands].reverse().slice(0, 16);
+  const [top, ...rest] = [...list].reverse();
+  const restHtml = rest
+    .slice(0, 5)
+    .map(
+      (a) => `
+      <div class="feed-item" title="${a.message || ''}">
+        <span class="dot ${sevDot(a.severity)}"></span>
+        <span class="feed-title">${ALERT_TITLES[a.code] || a.code} · ${nameOf(a.component_id)}</span>
+        <span class="feed-time mono">${fmtSimTime(a.sim_time_sec)}</span>
+      </div>`
+    )
+    .join('');
 
-  el.ledgerTableBody.innerHTML = recent
-    .map((cmd) => {
-      const isApplied = cmd.status === 'accepted';
-      const simSec = cmd.sim_time_sec || 0;
-      const d = Math.floor(simSec / 86400);
-      const h = Math.floor((simSec % 86400) / 3600);
-      const m = Math.floor((simSec % 3600) / 60);
-      const timeStr = `Day ${d} · ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  el.alertsFeed.innerHTML = `
+    <div class="feed-item expanded">
+      <span class="dot ${sevDot(top.severity)}"></span>
+      <span class="feed-title">${ALERT_TITLES[top.code] || top.code || 'Anomaly detected'}</span>
+      <span class="feed-time mono">${fmtSimTime(top.sim_time_sec)}</span>
+      <span class="feed-desc">${top.message || 'Divergence between probe reading and twin prediction.'}</span>
+      <span class="feed-code mono">${top.code} · ${top.component_id || 'system'} · ${(top.severity || 'info').toUpperCase()}</span>
+    </div>${restHtml}`;
+}
 
-      // Plain-English Action Description
-      let actionDesc = 'Safety Interlock check';
-      if (cmd.dose_stock_a_ml) actionDesc = `🧪 Stock Part A (+${cmd.dose_stock_a_ml.toFixed(1)} mL)`;
-      else if (cmd.dose_stock_b_ml) actionDesc = `🧪 Stock Part B (+${cmd.dose_stock_b_ml.toFixed(1)} mL)`;
-      else if (cmd.dose_acid_ml) actionDesc = `⚗️ Nitric Acid (+${cmd.dose_acid_ml.toFixed(1)} mL)`;
-      else if (cmd.dose_base_ml) actionDesc = `⚗️ KOH Base (+${cmd.dose_base_ml.toFixed(1)} mL)`;
-      else if (cmd.refill_water_l) actionDesc = `💧 Fresh Water (+${cmd.refill_water_l.toFixed(1)} L)`;
-      else if (cmd.action === 'set_pump_throttle') actionDesc = `⚙️ Set Pump Throttle (${Math.round((cmd.throttle || 1) * 100)}%)`;
+// --- Chart helpers ---
+function sizeSvg(svg) {
+  const w = Math.max(200, Math.round(svg.clientWidth || 540));
+  const h = Math.max(60, Math.round(svg.clientHeight || 150));
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  return { w, h };
+}
 
-      // Friendly Target Translation
-      let targetName = cmd.target_component_id || 'System';
-      if (targetName === 'res-1' || targetName === 'reservoir-1') targetName = 'Main Reservoir';
-      else if (targetName === 'pump-1') targetName = 'Circulation Pump';
-      else if (targetName === 'stock-a') targetName = 'Stock A Tank';
-      else if (targetName === 'stock-b') targetName = 'Stock B Tank';
-      else if (targetName === 'stock-acid') targetName = 'Acid Buffer';
+function smoothPath(pts) {
+  if (!pts.length) return '';
+  let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) {
+    const p = pts[i - 1];
+    const c = pts[i];
+    const mx = (p.x + c.x) / 2;
+    d += ` C${mx.toFixed(1)},${p.y.toFixed(1)} ${mx.toFixed(1)},${c.y.toFixed(1)} ${c.x.toFixed(1)},${c.y.toFixed(1)}`;
+  }
+  return d;
+}
 
-      return `
-      <tr>
-        <td><b>${actionDesc}</b></td>
-        <td>${targetName}</td>
-        <td>
-          <span class="audit-badge ${isApplied ? 'applied' : 'rejected'}" title="${cmd.rejection_message || (isApplied ? 'Verified by PLC interlock' : 'Blocked')}">
-            ${isApplied ? 'APPLIED' : 'REJECTED'}
-          </span>
-        </td>
-        <td class="tabular-nums" style="color: var(--text-secondary);">${timeStr}</td>
-      </tr>
-    `;
+const VITAL_METRICS = {
+  DO: { min: 2, max: 10, unit: 'mg/L', l1: 'OUTLET PROBE', l2: 'TRUE OUTLET DO', v1: (h) => h.measured.DO, v2: (h) => h.doCh },
+  EC: { min: 0.5, max: 3.5, unit: 'mS/cm', l1: 'EC PROBE', l2: 'TRUE EC25', v1: (h) => h.measured.EC, v2: (h) => h.gtEc },
+  pH: { min: 4.5, max: 8.5, unit: 'pH', l1: 'pH PROBE', l2: 'TRUE pH', v1: (h) => h.measured.pH, v2: (h) => h.gtPh },
+  CLIMATE: { min: 15, max: 35, unit: '°C', l1: 'AIR TEMP', l2: 'WATER TEMP', v1: (h) => h.measured.T_air, v2: (h) => h.measured.T_w ?? h.gtResT },
+};
+
+// --- Vitalities ---
+function renderVitalities() {
+  const svg = el.vitalSvg;
+  if (!svg || activeView !== 'farm-status') return;
+  const { w, h } = sizeSvg(svg);
+  const m = VITAL_METRICS[selectedVitalityMetric];
+  const hist = (session.history || []).filter((p) => m.v1(p) != null || m.v2(p) != null);
+
+  const padL = 34, padR = 8, padT = 6, padB = 18;
+  const cw = w - padL - padR;
+  const ch = h - padT - padB;
+  const y = (v) => padT + ch - ((clamp(v, m.min, m.max) - m.min) / (m.max - m.min)) * ch;
+
+  // Gridlines + y labels
+  const ticks = [m.min, (m.min + m.max) / 2, m.max];
+  let out = ticks
+    .map((t) => `<line x1="${padL}" x2="${w - padR}" y1="${y(t)}" y2="${y(t)}" stroke="#F1F5F9"/><text x="${padL - 6}" y="${y(t) + 3}" text-anchor="end">${fmtNum(t, t % 1 ? 1 : 0)}</text>`)
+    .join('');
+
+  el.vitalLabel1.textContent = m.l1;
+  el.vitalLabel2.textContent = m.l2;
+
+  if (hist.length < 2) {
+    out += `<text x="${padL + cw / 2}" y="${padT + ch / 2}" text-anchor="middle">AWAITING TELEMETRY · RUN SIMULATION</text>`;
+    svg.innerHTML = out;
+    el.vitalVal1.textContent = '—';
+    el.vitalVal2.textContent = '—';
+    el.vitalDelta.textContent = '—';
+    return;
+  }
+
+  const t0 = hist[0].t;
+  const t1 = hist[hist.length - 1].t;
+  const x = (t) => padL + ((t - t0) / Math.max(1, t1 - t0)) * cw;
+
+  const series = (fn) => hist.filter((p) => fn(p) != null).map((p) => ({ x: x(p.t), y: y(fn(p)) }));
+  const s1 = series(m.v1);
+  const s2 = series(m.v2);
+  const base = padT + ch;
+  const area = (pts) => (pts.length ? `${smoothPath(pts)} L${pts[pts.length - 1].x},${base} L${pts[0].x},${base} Z` : '');
+
+  // X labels (start / mid / end, in sim days)
+  out += [t0, (t0 + t1) / 2, t1]
+    .map((t, i) => `<text x="${x(t)}" y="${h - 4}" text-anchor="${['start', 'middle', 'end'][i]}">${fmtSimTime(t)}</text>`)
+    .join('');
+
+  out += `
+    <defs>
+      <linearGradient id="vg-teal" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0D9488" stop-opacity="0.14"/><stop offset="1" stop-color="#0D9488" stop-opacity="0"/></linearGradient>
+    </defs>
+    <path d="${area(s1)}" fill="url(#vg-teal)"/>
+    <path d="${smoothPath(s2)}" fill="none" stroke="#64748B" stroke-width="1.25" stroke-dasharray="3 3"/>
+    <path d="${smoothPath(s1)}" fill="none" stroke="#0D9488" stroke-width="1.5"/>`;
+  svg.innerHTML = out;
+
+  const last = hist[hist.length - 1];
+  const v1 = m.v1(last);
+  const v2 = m.v2(last);
+  el.vitalVal1.textContent = v1 == null ? '—' : `${fmtNum(v1)} ${m.unit}`;
+  el.vitalVal2.textContent = v2 == null ? '—' : `${fmtNum(v2)} ${m.unit}`;
+  el.vitalDelta.textContent = v1 != null && v2 != null ? `${v1 - v2 >= 0 ? '+' : ''}${fmtNum(v1 - v2, 3)}` : '—';
+}
+
+// --- Activity bar chart ---
+function renderActivity() {
+  const svg = el.barSvg;
+  if (!svg || activeView !== 'farm-status') return;
+  const { w, h } = sizeSvg(svg);
+  const cmds = (session.commands || []).filter((c) => c.status === 'accepted');
+  const now = session.status?.sim_time_sec || 0;
+  const is24 = selectedDosingTimeframe === '24h';
+  const n = is24 ? 24 : session.seasonDays;
+  const bins = Array.from({ length: n }, () => ({ ml: 0, l: 0 }));
+
+  // 24 h view: rolling window ending now, one bin per hour.
+  const winStart = Math.max(0, now - 86400);
+  for (const c of cmds) {
+    const t = c.sim_time_sec || 0;
+    let i;
+    if (is24) {
+      if (t < winStart || t > now) continue;
+      i = Math.min(n - 1, Math.floor((t - winStart) / 3600));
+    } else {
+      i = Math.min(n - 1, Math.floor(t / 86400));
+    }
+    bins[i].ml += (c.dose_stock_a_ml || 0) + (c.dose_stock_b_ml || 0) + (c.dose_acid_ml || 0) + (c.dose_base_ml || 0);
+    bins[i].l += c.refill_water_l || 0;
+  }
+
+  const totalMl = bins.reduce((s, b) => s + b.ml, 0);
+  const totalL = bins.reduce((s, b) => s + b.l, 0);
+  el.activityTotal.textContent = `Σ ${fmtNum(totalMl, 1)} mL · ${fmtNum(totalL, 1)} L`;
+
+  const padL = 34, padR = 8, padT = 4, padB = 16;
+  const cw = w - padL - padR;
+  const ch = h - padT - padB;
+  const base = padT + ch;
+  const maxMl = Math.max(5, ...bins.map((b) => b.ml));
+  const maxL = Math.max(1, ...bins.map((b) => b.l));
+  const slot = cw / n;
+  const bw = Math.max(2, slot * 0.62);
+
+  let out = `<line x1="${padL}" x2="${w - padR}" y1="${base}" y2="${base}" stroke="#E2E8F0"/>
+    <line x1="${padL}" x2="${w - padR}" y1="${padT}" y2="${padT}" stroke="#F1F5F9"/>
+    <text x="${padL - 6}" y="${padT + 7}" text-anchor="end">${fmtNum(maxMl, 0)}</text>
+    <text x="${padL - 6}" y="${base}" text-anchor="end">0</text>`;
+
+  bins.forEach((b, i) => {
+    const x0 = padL + i * slot + (slot - bw) / 2;
+    if (b.ml > 0) {
+      const bh = Math.max(1.5, (b.ml / maxMl) * ch);
+      out += `<rect x="${x0.toFixed(1)}" y="${(base - bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="1" fill="#0D9488"><title>${fmtNum(b.ml, 1)} mL</title></rect>`;
+    } else {
+      out += `<rect x="${x0.toFixed(1)}" y="${base - 1}" width="${bw.toFixed(1)}" height="1" fill="#E2E8F0"/>`;
+    }
+    if (b.l > 0) {
+      const lh = Math.max(2, (b.l / maxL) * ch * 0.5);
+      out += `<rect x="${(x0 + bw / 2 - 1).toFixed(1)}" y="${(base - lh).toFixed(1)}" width="2" height="${lh.toFixed(1)}" fill="#64748B"><title>${fmtNum(b.l, 1)} L refill</title></rect>`;
+    }
+  });
+
+  const labels = is24
+    ? [[0, fmtSimTime(winStart)], [n / 2, fmtSimTime(winStart + 43200)], [n, fmtSimTime(now)]]
+    : [[0, 'D01'], [n / 2, `D${pad2(n / 2)}`], [n, `D${pad2(n)}`]];
+  out += labels
+    .map(([i, txt], k) => `<text x="${padL + i * slot}" y="${h - 3}" text-anchor="${['start', 'middle', 'end'][k]}">${txt}</text>`)
+    .join('');
+  svg.innerHTML = out;
+}
+
+// --- Safety ledger ---
+function describeCommand(c) {
+  const parts = [];
+  if (c.dose_stock_a_ml) parts.push(`A +${fmtNum(c.dose_stock_a_ml, 1)}`);
+  if (c.dose_stock_b_ml) parts.push(`B +${fmtNum(c.dose_stock_b_ml, 1)}`);
+  if (c.dose_acid_ml) parts.push(`HNO₃ +${fmtNum(c.dose_acid_ml, 1)}`);
+  if (c.dose_base_ml) parts.push(`KOH +${fmtNum(c.dose_base_ml, 1)}`);
+  switch (c.action) {
+    case 'dose': return { verb: 'Dose', detail: `${parts.join(' · ')} mL` };
+    case 'refill_water': return { verb: 'Refill water', detail: `+${fmtNum(c.refill_water_l, 1)} L` };
+    case 'set_pump_throttle': return { verb: 'Set pump', detail: `${Math.round((c.throttle ?? 1) * 100)}%` };
+    case 'set_aerator_throttle': return { verb: 'Set aerator', detail: `${Math.round((c.throttle ?? 1) * 100)}%` };
+    case 'set_fan_throttle': return { verb: 'Set fans', detail: `${Math.round((c.throttle ?? 1) * 100)}%` };
+    default: return { verb: c.action || 'Command', detail: parts.join(' · ') };
+  }
+}
+
+function renderLedger() {
+  const cmds = session.commands || [];
+  const applied = cmds.filter((c) => c.status === 'accepted').length;
+  const blocked = cmds.length - applied;
+  el.ledgerStats.textContent = `${applied} APPLIED · ${blocked} BLOCKED`;
+
+  if (cmds.length === 0) {
+    const ts = `[${fmtSimTime(session.status?.sim_time_sec || 0)}]`;
+    const sim = session.simId ? session.simId.slice(0, 8) : '--------';
+    el.ledgerBody.className = 'term';
+    el.ledgerBody.innerHTML = [
+      ['SYSTEM_ARMED', 'Observing sensor array; 0 hazardous doses dispatched'],
+      ['PLC_GUARDIAN', 'Interlock armed; EC / pH / volume envelope enforced on every command'],
+      ['AUTOPILOT', `Closed-loop controller attached to sim ${sim}; awaiting first decision window`],
+      ['LEDGER', 'No actuation commands recorded'],
+    ]
+      .map(([ev, msg]) => `<tr><td colspan="4"><span class="ts">${ts}</span> <span class="ev">${ev}</span> — ${msg}</td></tr>`)
+      .join('');
+    return;
+  }
+
+  el.ledgerBody.className = '';
+  el.ledgerBody.innerHTML = [...cmds]
+    .reverse()
+    .slice(0, 40)
+    .map((c) => {
+      const ok = c.status === 'accepted';
+      const { verb, detail } = describeCommand(c);
+      const why = c.rejection_message || c.rejection_code || (ok ? 'Verified by PLC interlock' : 'Blocked');
+      return `<tr>
+        <td class="cmd">${verb}<span class="mono">${detail}</span></td>
+        <td class="tgt">${nameOf(c.target_component_id)}<span class="mono">${c.target_component_id || '—'}</span></td>
+        <td><span class="tag ${ok ? 'ok' : 'bad'}" title="${why}">${ok ? 'APPLIED' : 'REJECTED'}</span></td>
+        <td class="time mono r">${fmtSimTime(c.sim_time_sec)}</td>
+      </tr>`;
     })
     .join('');
 }
 
-// --- VIEW 2: Gully Matrix Grid (A..D × 1..3) ---
+// --- VIEW 2: Gully Matrix ---
 function renderGullyMatrix() {
-  const channels = session.spec?.channels || [
-    { id: 'ch-1', plants_per_channel: 6 },
-    { id: 'ch-2', plants_per_channel: 6 },
-  ];
-
-  const channelMap = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3', 'D1', 'D2', 'D3'];
-  const doReading = session.readings.DO ?? session.gt?.c_do_ch_out_mg_l ?? 6.8;
-
-  el.matrixGridContainer.innerHTML = channelMap
-    .map((slot, idx) => {
-      const isActive = idx < channels.length;
-      const count = isActive ? channels[idx]?.plants_per_channel || 6 : 0;
-      const chDo = isActive ? doReading : 0;
-
-      return `
-        <div class="gully-card-cell" style="opacity: ${isActive ? '1' : '0.45'};">
-          <div class="gully-cell-top">
-            <span class="gully-title">Gully ${slot}</span>
-            <span class="kpi-badge ${isActive ? 'healthy' : ''}" style="${isActive ? '' : 'background: #EEE; color: #888;'}">
-              ${isActive ? 'Online' : 'Unmounted'}
-            </span>
-          </div>
-          <div class="gully-ports-row">
-            ${Array.from({ length: Math.min(8, count || 6) })
-              .map(() => `<span class="port-sprout-dot">${isActive ? '🥬' : '·'}</span>`)
-              .join('')}
-          </div>
-          <div style="font-size: 11px; color: var(--text-secondary); display: flex; justify-content: space-between; margin-top: 4px;">
-            <span>Plants: <b>${count}</b></span>
-            <span>DO: <b class="tabular-nums">${isActive ? chDo.toFixed(1) : '\u2014'} mg/L</b></span>
-          </div>
+  const channels = session.spec?.channels || [];
+  const doOut = session.readings.DO ?? session.gt?.c_do_ch_out_mg_l;
+  el.matrix.innerHTML = Array.from({ length: 12 }, (_, i) => {
+    const ch = channels[i];
+    const ports = ch ? ch.plants_per_channel : 6;
+    return `
+      <div class="gully ${ch ? '' : 'off'}">
+        <div class="gully-top">
+          <span class="gully-name">Gully ${channelSlot(i)}</span>
+          <span class="tag ${ch ? 'ok' : ''}">${ch ? 'ONLINE' : 'UNMOUNTED'}</span>
         </div>
-      `;
-    })
-    .join('');
+        <div class="port-grid">${Array.from({ length: ports }, () => `<i class="port ${ch ? 'ok' : 'empty'}"></i>`).join('')}</div>
+        <div class="gully-foot mono">
+          <span>${ch ? ch.id : '—'} · ${ch ? ports : 0} PORTS</span>
+          <span>DO ${ch ? fmtNum(doOut, 1) : '—'} mg/L</span>
+        </div>
+      </div>`;
+  }).join('');
 }
 
-// --- VIEW 3: 2.5D Isometric Rack Overview SVG ---
+// --- VIEW 3: Rack Overview ---
 function renderIsometricRack() {
   const faults = session.activeFaults || [];
-  const hasFault = faults.length > 0;
-  const doVal = session.readings.DO ?? 6.8;
-
-  el.svgIsometricRack.innerHTML = `
-    <!-- Isometric Floor Grid Shadows -->
-    <polygon points="120,380 400,240 680,380 400,430" fill="rgba(18, 91, 99, 0.04)" />
-
-    <!-- Rack Level 3 (Top Gully Plane) -->
-    <g transform="translate(0, -60)">
-      <polygon points="200,200 480,100 640,170 360,270" fill="#FFFFFF" stroke="#125B63" stroke-width="1.8" filter="drop-shadow(0 10px 18px rgba(18,91,99,0.08))" />
-      <!-- Gully lines -->
-      <line x1="240" y1="215" x2="520" y2="115" stroke="#E6ECEB" stroke-width="2" />
-      <line x1="280" y1="230" x2="560" y2="130" stroke="#E6ECEB" stroke-width="2" />
-      <line x1="320" y1="245" x2="600" y2="145" stroke="#E6ECEB" stroke-width="2" />
-      <!-- Sprout dots -->
-      <circle cx="280" cy="180" r="7" fill="#E6F7EE" stroke="#16B364" stroke-width="1.5" />
-      <circle cx="340" cy="160" r="7" fill="#E6F7EE" stroke="#16B364" stroke-width="1.5" />
-      <circle cx="400" cy="140" r="7" fill="#E6F7EE" stroke="#16B364" stroke-width="1.5" />
-      <circle cx="460" cy="120" r="7" fill="#E6F7EE" stroke="#16B364" stroke-width="1.5" />
-      <text x="210" y="220" font-size="10" font-family="'JetBrains Mono', monospace" font-weight="700" fill="#125B63">GULLY B1 (Outlet DO: ${doVal.toFixed(1)} mg/L)</text>
-    </g>
-
-    <!-- Rack Level 2 (Middle Gully Plane) -->
-    <g transform="translate(0, 0)">
-      <polygon points="200,200 480,100 640,170 360,270" fill="#FFFFFF" stroke="#125B63" stroke-width="1.8" filter="drop-shadow(0 10px 18px rgba(18,91,99,0.08))" />
-      <circle cx="280" cy="180" r="7" fill="#E6F7EE" stroke="#16B364" stroke-width="1.5" />
-      <circle cx="340" cy="160" r="7" fill="#E6F7EE" stroke="#16B364" stroke-width="1.5" />
-      <circle cx="400" cy="140" r="7" fill="#E6F7EE" stroke="#16B364" stroke-width="1.5" />
-      <circle cx="460" cy="120" r="7" fill="#E6F7EE" stroke="#16B364" stroke-width="1.5" />
-      <text x="210" y="220" font-size="10" font-family="'JetBrains Mono', monospace" font-weight="700" fill="#125B63">GULLY A1 (Nominal)</text>
-    </g>
-
-    <!-- Floating Anomaly Alert Pin if fault is active -->
-    ${
-      hasFault
-        ? `
-      <g transform="translate(340, 100)">
-        <circle cx="0" cy="0" r="14" fill="#EB4D3D" filter="drop-shadow(0 4px 10px rgba(235,77,61,0.5))" />
-        <text x="0" y="4" text-anchor="middle" font-size="12" font-weight="800" fill="#FFFFFF">✕</text>
-        <rect x="-60" y="-36" width="120" height="22" rx="6" fill="#125B63" />
-        <text x="0" y="-22" text-anchor="middle" font-size="9" font-weight="700" fill="#FFFFFF">${faults[0].kind}</text>
-      </g>
-    `
-        : `
-      <g transform="translate(340, 100)">
-        <circle cx="0" cy="0" r="12" fill="#16B364" filter="drop-shadow(0 4px 8px rgba(22,179,100,0.3))" />
-        <text x="0" y="4" text-anchor="middle" font-size="10" font-weight="800" fill="#FFFFFF">✓</text>
-      </g>
-    `
-    }
-  `;
+  const doVal = session.readings.DO;
+  const plane = (dy, label) => `
+    <g transform="translate(0, ${dy})">
+      <polygon points="200,200 480,100 640,170 360,270" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+      <line x1="240" y1="215" x2="520" y2="115" stroke="#F1F5F9" stroke-width="1"/>
+      <line x1="280" y1="230" x2="560" y2="130" stroke="#F1F5F9" stroke-width="1"/>
+      <line x1="320" y1="245" x2="600" y2="145" stroke="#F1F5F9" stroke-width="1"/>
+      ${[0, 1, 2, 3].map((k) => `<rect x="${276 + k * 60}" y="${176 - k * 20}" width="8" height="8" fill="#0D9488"/>`).join('')}
+      <text x="200" y="${222}" font-family="JetBrains Mono, monospace" font-size="10" fill="#64748B">${label}</text>
+    </g>`;
+  const pin = faults.length
+    ? `<g transform="translate(340, 96)">
+         <rect x="-70" y="-30" width="140" height="18" rx="3" fill="#0F172A"/>
+         <text x="0" y="-18" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#FFFFFF">${faults[0].kind.toUpperCase()}</text>
+         <circle r="5" fill="#DC2626"/>
+       </g>`
+    : `<g transform="translate(340, 96)"><circle r="4" fill="#0D9488"/></g>`;
+  el.isoSvg.innerHTML = `
+    <polygon points="120,380 400,240 680,380 400,430" fill="#F1F5F9"/>
+    ${plane(-60, `GULLY B1 · OUTLET DO ${fmtNum(doVal, 1)} mg/L`)}
+    ${plane(0, 'GULLY A1 · NOMINAL')}
+    ${pin}`;
 }
 
-// --- VIEW 5: Judge / Proof View ---
+// --- VIEW 4: Timeline ---
+function renderTimeline() {
+  const n = stageOf(session.simDays).n;
+  el.timelineStages.forEach((s) => {
+    const k = Number(s.dataset.stage);
+    s.classList.toggle('current', k === n);
+    s.classList.toggle('done', k < n);
+  });
+}
+
+// --- VIEW 5: Judge / Proof ---
 function renderProofTable() {
   const rd = session.readings;
   const gt = session.gt || {};
   const res = session.residuals || {};
-
   const rows = [
-    {
-      comp: 'Nutrient EC Probe (sen-ec-1)',
-      sensor: `${(rd.EC ?? 2.0).toFixed(2)} mS/cm`,
-      gt: `${(gt.ec25_ds_m ?? 2.0).toFixed(2)} mS/cm`,
-      delta: `${(res.EC ?? 0).toFixed(3)}`,
-      status: Math.abs(res.EC ?? 0) > 0.1 ? '⚠️ Concentration anomaly' : '✓ Calibration verified',
-    },
-    {
-      comp: 'Acidity pH Probe (sen-ph-1)',
-      sensor: `${(rd.pH ?? 5.95).toFixed(2)} pH`,
-      gt: `${(gt.ph ?? 5.95).toFixed(2)} pH`,
-      delta: `${(res.pH ?? 0).toFixed(3)}`,
-      status: Math.abs(res.pH ?? 0) > 0.4 ? '❌ Electrode drift detected' : '✓ Chemical balance matched',
-    },
-    {
-      comp: 'Gully Outlet DO Probe (sen-do-1)',
-      sensor: `${(rd.DO ?? 6.8).toFixed(2)} mg/L`,
-      gt: `${(gt.c_do_ch_out_mg_l ?? 6.8).toFixed(2)} mg/L`,
-      delta: `${(res.DO ?? 0).toFixed(3)}`,
-      status: (res.DO ?? 0) < -0.32 ? '❌ Flow reduction implied' : '✓ Root oxygen nominal',
-    },
-    {
-      comp: 'Reservoir Level Probe (sen-vres-1)',
-      sensor: `${(rd.V_res ?? 98.4).toFixed(1)} L`,
-      gt: `${(gt.v_res_l ?? 98.4).toFixed(1)} L`,
-      delta: `${(res.V_res ?? 0).toFixed(3)}`,
-      status: (res.V_res ?? 0) < -0.85 ? '❌ Physical leak suspected' : '✓ Water conservation nominal',
-    },
+    ['EC probe', 'sen-ec-1', rd.EC, gt.ec25_ds_m, 2, 'mS/cm', res.EC, Math.abs(res.EC ?? 0) > 0.1, 'CONCENTRATION ANOMALY'],
+    ['pH probe', 'sen-ph-1', rd.pH, gt.ph, 2, 'pH', res.pH, Math.abs(res.pH ?? 0) > 0.4, 'ELECTRODE DRIFT'],
+    ['Outlet DO probe', 'sen-do-1', rd.DO, gt.c_do_ch_out_mg_l, 2, 'mg/L', res.DO, (res.DO ?? 0) < -0.32, 'FLOW REDUCTION'],
+    ['Reservoir level', 'sen-vres-1', rd.V_res, gt.v_res_l, 1, 'L', res.V_res, (res.V_res ?? 0) < -0.85, 'LEAK SUSPECTED'],
   ];
-
-  el.proofTableBody.innerHTML = rows
-    .map(
-      (r) => `
-    <tr>
-      <td><b>${r.comp}</b></td>
-      <td class="tabular-nums">${r.sensor}</td>
-      <td class="tabular-nums">${r.gt}</td>
-      <td class="tabular-nums">${r.delta}</td>
-      <td><span class="audit-badge ${r.status.startsWith('✓') ? 'applied' : 'rejected'}">${r.status}</span></td>
-    </tr>
-  `
-    )
+  el.proofBody.innerHTML = rows
+    .map(([name, id, s, g, d, u, r, bad, msg]) => `
+      <tr>
+        <td class="tgt">${name}<span class="mono">${id}</span></td>
+        <td class="mono r">${fmtNum(s, d)} ${u}</td>
+        <td class="mono r">${fmtNum(g, d)} ${u}</td>
+        <td class="mono r">${fmtNum(r ?? 0, 3)}</td>
+        <td><span class="tag ${bad ? 'bad' : 'ok'}">${bad ? msg : 'NOMINAL'}</span></td>
+      </tr>`)
     .join('');
 }
 
-// --- Chaos Testing Modal Logic ---
-function bindModalEvents() {
-  // Open / Close Challenge Modal
+// --- Modals ---
+function bindModals() {
   el.btnOpenChallenge.addEventListener('click', () => {
-    updateActiveFaultsModalList();
-    el.modalChallengeBackdrop.classList.add('open');
+    renderActiveFaults();
+    el.modalChallenge.classList.add('open');
   });
+  const closeChallenge = () => el.modalChallenge.classList.remove('open');
+  el.modalChallengeClose.addEventListener('click', closeChallenge);
+  el.modalChallengeCancel.addEventListener('click', closeChallenge);
 
-  el.modalChallengeClose.addEventListener('click', () => el.modalChallengeBackdrop.classList.remove('open'));
-  el.modalChallengeCancel.addEventListener('click', () => el.modalChallengeBackdrop.classList.remove('open'));
-
-  // Select Fault Button
-  el.faultOptionBtns.forEach((btn) => {
+  el.faultOpts.forEach((btn) =>
     btn.addEventListener('click', () => {
-      el.faultOptionBtns.forEach((b) => b.classList.remove('selected'));
-      btn.classList.add('selected');
-      const kind = btn.dataset.kind;
-      selectedFault = FAULT_BY_KIND[kind] || FAULTS[0];
-    });
-  });
+      el.faultOpts.forEach((b) => b.classList.toggle('selected', b === btn));
+      selectedFault = FAULT_BY_KIND[btn.dataset.kind] || FAULTS[0];
+    })
+  );
 
-  // Inject Selected Fault
-  el.btnInjectSelectedFault.addEventListener('click', async () => {
+  el.btnInject.addEventListener('click', async () => {
     if (!selectedFault) return;
-    el.btnInjectSelectedFault.disabled = true;
+    el.btnInject.disabled = true;
     try {
       await session.injectFault(selectedFault);
-      updateActiveFaultsModalList();
-      el.modalChallengeBackdrop.classList.remove('open');
+      closeChallenge();
+    } catch (err) {
+      console.error('Fault injection failed:', err);
     } finally {
-      el.btnInjectSelectedFault.disabled = false;
+      el.btnInject.disabled = false;
     }
   });
 
-  // Clear All Faults
   el.btnClearAllFaults.addEventListener('click', async () => {
     await session.clearAllFaults();
-    updateActiveFaultsModalList();
+    renderActiveFaults();
   });
 
-  // Custom Layout Builder Modal
-  el.btnOpenLayoutModal?.addEventListener('click', () => openCustomLayoutModal());
-  el.modalLayoutClose?.addEventListener('click', () => el.modalLayoutBackdrop.classList.remove('open'));
-  el.modalLayoutCancel?.addEventListener('click', () => el.modalLayoutBackdrop.classList.remove('open'));
-
-  // Custom Layout Sliders
-  el.sliderChannelCount?.addEventListener('input', (e) => (el.valChannelCount.textContent = e.target.value));
-  el.sliderPlantsPerChannel?.addEventListener('input', (e) => (el.valPlantsPerChannel.textContent = e.target.value));
-  el.sliderTankVolume?.addEventListener('input', (e) => (el.valTankVolume.textContent = `${e.target.value} L`));
-  el.sliderPumpFlow?.addEventListener('input', (e) => (el.valPumpFlow.textContent = `${e.target.value} L/m`));
-
-  el.btnApplyCustomFarm?.addEventListener('click', async () => {
-    await applyCustomFarmLayout();
+  el.activeFaultsList.addEventListener('click', async (e) => {
+    const kind = e.target.closest('[data-clear]')?.dataset.clear;
+    if (!kind) return;
+    await session.clearFault(kind);
+    renderActiveFaults();
   });
+
+  el.btnOpenLayout.addEventListener('click', openLayoutModal);
+  const closeLayout = () => {
+    el.modalLayout.classList.remove('open');
+    el.seasonPicker.value = currentPreset.presetId ?? 'exp2';
+  };
+  el.modalLayoutClose.addEventListener('click', closeLayout);
+  el.modalLayoutCancel.addEventListener('click', closeLayout);
+
+  el.sliderChannels.addEventListener('input', (e) => (el.valChannels.textContent = e.target.value));
+  el.sliderPlants.addEventListener('input', (e) => (el.valPlants.textContent = e.target.value));
+  el.sliderVolume.addEventListener('input', (e) => (el.valVolume.textContent = `${e.target.value} L`));
+  el.sliderFlow.addEventListener('input', (e) => (el.valFlow.textContent = `${Number(e.target.value).toFixed(1)} L/min`));
+  el.btnApplyLayout.addEventListener('click', applyCustomLayout);
 }
 
-function updateActiveFaultsModalList() {
+function renderActiveFaults() {
   const faults = session.activeFaults || [];
-  if (faults.length === 0) {
-    el.modalActiveFaultsList.innerHTML = '<span style="font-size: 11px; color: var(--text-secondary);">No physical faults active in the loop.</span>';
-    return;
-  }
-
-  el.modalActiveFaultsList.innerHTML = faults
-    .map(
-      (f) => `
-    <div class="active-fault-badge">
-      <span>⚡ ${f.kind} on ${f.target_component_id || 'system'}</span>
-      <button class="btn-clear-single" onclick="window.clearSingleFault('${f.kind}')">Clear</button>
-    </div>
-  `
-    )
-    .join('');
+  el.activeFaultsList.innerHTML = faults.length
+    ? faults
+        .map((f) => `<div class="fault-chip"><span>${f.kind.toUpperCase()} · ${f.target_component_id || 'system'}</span><button class="btn btn-xs mono" data-clear="${f.kind}">CLEAR</button></div>`)
+        .join('')
+    : '<span class="mono">NO ACTIVE PERTURBATIONS</span>';
 }
 
-window.clearSingleFault = async function (kind) {
-  await session.clearFault(kind);
-  updateActiveFaultsModalList();
-};
-
-function openCustomLayoutModal() {
-  el.modalLayoutBackdrop.classList.add('open');
+function openLayoutModal() {
+  el.modalLayout.classList.add('open');
 }
 
-async function applyCustomFarmLayout() {
-  const count = parseInt(el.sliderChannelCount.value, 10);
-  const plants = parseInt(el.sliderPlantsPerChannel.value, 10);
-  const vol = parseFloat(el.sliderTankVolume.value);
-  const flow = parseFloat(el.sliderPumpFlow.value);
-
-  const customDesign = cloneDesign(currentPreset);
-  customDesign.channels.count = count;
-  customDesign.channels.plantsPerChannel = plants;
-  customDesign.reservoir.volumeL = vol;
-  customDesign.pump.flowLMin = flow;
-  customDesign.name = `Custom Farm Layout (${count} Gullies, ${count * plants} Plants)`;
-
-  el.modalLayoutBackdrop.classList.remove('open');
-  await session.start(customDesign);
-  el.chipActivePreset.textContent = 'CUSTOM';
-  el.infoFarmPreset.textContent = customDesign.name;
-  updateAllUI();
+async function applyCustomLayout() {
+  const count = parseInt(el.sliderChannels.value, 10);
+  const plants = parseInt(el.sliderPlants.value, 10);
+  const design = cloneDesign(currentPreset);
+  design.channels.count = count;
+  design.channels.plantsPerChannel = plants;
+  design.reservoir.volumeL = parseFloat(el.sliderVolume.value);
+  design.pump.flowLMin = parseFloat(el.sliderFlow.value);
+  design.name = `Custom Farm Layout (${count} gullies, ${count * plants} plants)`;
+  el.modalLayout.classList.remove('open');
+  await loadPreset(design);
 }
 
-// --- Run Boot Initializer ---
 init();

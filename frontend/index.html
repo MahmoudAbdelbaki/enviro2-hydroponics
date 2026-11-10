@@ -3,790 +3,470 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>HydroTwin — Autonomous NFT Botanical Digital Twin</title>
+    <title>Hydro Twin — NFT Lettuce Telemetry</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <div id="app-root">
-      <main class="saas-frame">
-        <!-- ================================================================
-             ZONE 1: Left Vertical Icon Rail (64px width, #125B63 Deep Teal)
-             ================================================================ -->
-        <aside class="icon-rail" aria-label="Main Navigation">
-          <div class="rail-top-group">
-            <!-- Brand Logo / Sprout Mark -->
-            <div class="brand-badge" id="brand-logo" title="Hydro Digital Twin · Alexandria NFT Facility">
-              <svg class="brand-sprout-svg" viewBox="0 0 24 24">
-                <path d="M12 22v-9" />
-                <path d="M9 13C6 13 4 10 4 7c3 0 6 2 6 5" />
-                <path d="M15 11c3 0 5-2 5-5-3 0-5 2-5 5" />
-                <path d="M12 13a5 5 0 0 1 5-5" />
-              </svg>
-            </div>
+    <div class="app">
+      <!-- ============================================================
+           LEFT RAIL (bordered column, shares grid lines with the header)
+           ============================================================ -->
+      <aside class="rail" aria-label="Main navigation">
+        <div class="rail-brand" id="brand-logo" title="Hydro Twin">
+          <svg class="ico ico-16" viewBox="0 0 24 24">
+            <path d="M7 20h10" /><path d="M10 20c5.5-2.5.8-6.4 3-10" />
+            <path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z" />
+            <path d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z" />
+          </svg>
+        </div>
+        <nav class="rail-nav">
+          <button class="rail-btn active" data-view="farm-status" aria-label="Farm Status">
+            <svg class="ico ico-16" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M9 22V12h6v10" /></svg>
+            <span class="rail-tip">Farm Status</span>
+          </button>
+          <button class="rail-btn" data-view="gully-matrix" aria-label="Gully Matrix">
+            <svg class="ico ico-16" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
+            <span class="rail-tip">Gully Matrix &amp; Layout</span>
+          </button>
+          <button class="rail-btn" data-view="isometric-rack" aria-label="Rack Overview">
+            <svg class="ico ico-16" viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5z" /><path d="m2 17 10 5 10-5" /><path d="m2 12 10 5 10-5" /></svg>
+            <span class="rail-tip">Rack Overview</span>
+          </button>
+          <button class="rail-btn" data-view="channel-deepdive" aria-label="Channel Deep-Dive">
+            <svg class="ico ico-16" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+            <span class="rail-tip">Channel Deep-Dive</span>
+          </button>
+          <button class="rail-btn" data-view="judge-proof" aria-label="Judge / Proof">
+            <svg class="ico ico-16" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></svg>
+            <span class="rail-tip">Judge / Proof View</span>
+          </button>
+        </nav>
+        <div class="rail-foot">
+          <span class="dot ok" id="rail-link-dot" title="Backend link"></span>
+        </div>
+      </aside>
 
-            <!-- View Switcher Navigation (5 Views) -->
-            <nav class="rail-nav">
-              <!-- 1. Farm Status -->
-              <button class="rail-btn active" data-view="farm-status" id="nav-farm-status" aria-label="Farm Status">
-                <svg viewBox="0 0 24 24">
-                  <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z" />
-                  <path d="M9 21V12h6v9" />
-                </svg>
-                <span class="tooltip">Farm Status (Executive Analytics)</span>
-              </button>
-
-              <!-- 2. Gully Matrix & Layout Builder -->
-              <button class="rail-btn" data-view="gully-matrix" id="nav-gully-matrix" aria-label="Gully Matrix & Layout Builder">
-                <svg viewBox="0 0 24 24">
-                  <rect x="3" y="3" width="7" height="7" rx="1.5" />
-                  <rect x="14" y="3" width="7" height="7" rx="1.5" />
-                  <rect x="14" y="14" width="7" height="7" rx="1.5" />
-                  <rect x="3" y="14" width="7" height="7" rx="1.5" />
-                </svg>
-                <span class="tooltip">Gully Matrix & Layout Builder</span>
-              </button>
-
-              <!-- 3. 2.5D Isometric Rack Overview -->
-              <button class="rail-btn" data-view="isometric-rack" id="nav-isometric-rack" aria-label="2.5D Isometric Rack Overview">
-                <svg viewBox="0 0 24 24">
-                  <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                  <path d="M2 17l10 5 10-5" />
-                  <path d="M2 12l10 5 10-5" />
-                </svg>
-                <span class="tooltip">2.5D Isometric Rack Overview</span>
-              </button>
-
-              <!-- 4. Channel Deep-Dive (Column B1 Overview) -->
-              <button class="rail-btn" data-view="channel-deepdive" id="nav-channel-deepdive" aria-label="Channel Deep-Dive">
-                <svg viewBox="0 0 24 24">
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  <path d="M11 8v6M8 11h6" />
-                </svg>
-                <span class="tooltip">Channel Deep-Dive (Column B1 Overview)</span>
-              </button>
-
-              <!-- 5. Judge / Proof View -->
-              <button class="rail-btn" data-view="judge-proof" id="nav-judge-proof" aria-label="Judge / Proof View">
-                <svg viewBox="0 0 24 24">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                  <path d="m9 12 2 2 4-4" />
-                </svg>
-                <span class="tooltip">Judge / Proof View (Noisy vs Ground Truth)</span>
-              </button>
-            </nav>
+      <div class="main">
+        <!-- ============================================================
+             TOP CONTROL BAR
+             ============================================================ -->
+        <header class="topbar">
+          <div class="tb-left">
+            <h1 class="view-title" id="header-view-title">Farm Status</h1>
+            <div class="sim-meta mono" id="sim-meta" title="Click to copy simulation ID">SIM-——— · CONNECTING</div>
           </div>
 
-          <div class="rail-bottom-group">
-            <div class="rail-status-dot" title="Live WebSocket / REST Synced to :8080"></div>
+          <div class="tb-controls">
+            <div class="select-wrap">
+              <select class="select mono" id="season-picker" aria-label="Farm preset">
+                <option value="exp1">EXP.1 · Alexandria Spring</option>
+                <option value="exp2" selected>EXP.2 · Alexandria Optimal</option>
+                <option value="exp3">EXP.3 · Alexandria Summer</option>
+                <option value="custom">Custom layout…</option>
+              </select>
+              <svg class="ico ico-12 select-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
+            </div>
+
+            <div class="clock mono" id="sim-clock-time">D00/30 · 00:00</div>
+
+            <button class="btn btn-icon" id="btn-play-pause" title="Play / Pause">
+              <svg class="ico ico-14" viewBox="0 0 24 24" id="ico-play"><polygon points="6 3 20 12 6 21 6 3" /></svg>
+              <svg class="ico ico-14 hidden" viewBox="0 0 24 24" id="ico-pause"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+              <span class="mono" id="btn-play-label">RUN</span>
+            </button>
+
+            <div class="seg mono" role="group" aria-label="Speed">
+              <button class="active" data-speed="1x" id="btn-speed-1x">1×</button>
+              <button data-speed="10x" id="btn-speed-10x">10×</button>
+            </div>
+
+            <button class="btn mono" id="btn-step-day" title="Advance 24 h">
+              <svg class="ico ico-14" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4" /><line x1="19" y1="5" x2="19" y2="19" /></svg>
+              +1 DAY
+            </button>
+
+            <span class="tb-divider"></span>
+
+            <button class="btn btn-warn mono" id="btn-open-challenge" title="Inject a physical fault and observe AI + PLC response">
+              <svg class="ico ico-14" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+              Inject Fault
+            </button>
           </div>
-        </aside>
 
-        <!-- ================================================================
-             ZONE 2: Center Workspace (Header + View Body)
-             =============================================================== -->
-        <section class="center-workspace">
-          <!-- Persistent Center Workspace Header -->
-          <header class="center-header">
-            <!-- Left: Dynamic View Title -->
-            <div class="header-left">
-              <h1 class="header-view-title" id="header-view-title">Farm Status</h1>
-              <p class="header-view-subtitle" id="header-view-subtitle">Executive Telemetry, Dosing Pill Gauges & Real-Time Splines</p>
-            </div>
+          <div class="tb-status">
+            <span class="badge mono" id="badge-autopilot"><span class="dot ok"></span>AUTOPILOT · ACTIVE</span>
+            <span class="badge mono" id="badge-plc"><span class="dot ok"></span>PLC GUARDIAN · 100% VERIFIED</span>
+          </div>
+        </header>
 
-            <!-- Center: Season & Layout Picker + Simulation Time Bar -->
-            <div class="header-center">
-              <!-- Season Picker -->
-              <div class="season-picker-wrapper">
-                <select class="season-select" id="season-picker" aria-label="Select Farm Season">
-                  <option value="exp1">🌱 Alexandria Spring EXP.1</option>
-                  <option value="exp2" selected>☀️ Alexandria Optimal EXP.2</option>
-                  <option value="exp3">🔥 Alexandria Summer EXP.3</option>
-                  <option value="custom">+ Custom Farm Layout</option>
-                </select>
-                <svg class="season-select-chevron" viewBox="0 0 24 24" fill="none" stroke-width="2">
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </div>
-
-              <!-- Simulation Time Bar -->
-              <div class="sim-time-bar">
-                <div class="sim-clock-display tabular-nums" id="sim-clock-time">Day 0 of 30 · 00:00</div>
-                <button class="btn-ctrl" id="btn-play-pause" title="Start or Pause Simulation">
-                  <span id="btn-play-icon">▶</span>
-                  <span id="btn-play-label">Play</span>
-                </button>
-                <button class="btn-ctrl" id="btn-speed-toggle" title="Toggle 1x / 10x Simulation Speed">
-                  <span id="btn-speed-label">10x</span>
-                </button>
-                <button class="btn-ctrl" id="btn-step-day" title="Advance simulation by 1 full day (24h)">
-                  <span>+1 Day</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- Right: AI Autopilot & PLC Guardian Badges -->
-            <div class="header-right">
-              <div class="ai-autopilot-pill" title="AI Controller automatically maintains nutrient and acid balance">
-                <span class="ai-pulse-dot"></span>
-                <span>🤖 AI Autopilot: ACTIVE</span>
-              </div>
-              <div class="plc-guardian-pill" title="Go Safety Interlock validates every dose before actuation">
-                <svg class="plc-shield-icon" viewBox="0 0 24 24">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </svg>
-                <span>🛡️ PLC Guardian: 100% Verified</span>
-              </div>
-            </div>
-          </header>
-
-          <!-- Center Content Area (Dynamic Views) -->
-          <div class="center-content-scroll" id="center-content-scroll">
-            
-            <!-- VIEW 1: Farm Status (Executive Analytics) -->
-            <div class="workspace-view active-view" id="view-farm-status">
-              <!-- ==============================================================
-                   1. TOP ROW: 3-Column Analytics Grid
-                   ============================================================== -->
-              <div class="farm-status-top-grid">
-                <!-- 1. Left — Capacity & Harvest Readiness Donut -->
-                <div class="botanical-card harvest-readiness-card">
-                  <div class="kpi-counters-header">
-                    <div class="kpi-counter-item">
-                      <span class="kpi-counter-label">Active Gullies</span>
-                      <span class="kpi-counter-val tabular-nums" id="donut-active-gullies">2</span>
-                    </div>
-                    <div class="kpi-counter-item">
-                      <span class="kpi-counter-label">Plant Ports Filled</span>
-                      <span class="kpi-counter-val tabular-nums" id="donut-ports-filled">12 / 12</span>
-                    </div>
-                    <div class="kpi-counter-item">
-                      <span class="kpi-counter-label">Biomass Target</span>
-                      <span class="kpi-counter-val tabular-nums" id="donut-biomass-target">250.0 g</span>
-                    </div>
-                  </div>
-
-                  <div class="donut-chart-container">
-                    <svg class="donut-svg" viewBox="0 0 130 130">
-                      <!-- Background track -->
-                      <circle cx="65" cy="65" r="48" fill="none" stroke="#E6ECEB" stroke-width="14" />
-                      <!-- Emerald progress circle -->
-                      <circle
-                        id="harvest-donut-progress"
-                        cx="65"
-                        cy="65"
-                        r="48"
-                        fill="none"
-                        stroke="#16B364"
-                        stroke-width="14"
-                        stroke-linecap="round"
-                        stroke-dasharray="301.6"
-                        stroke-dashoffset="150"
-                        transform="rotate(-90 65 65)"
-                      />
-                    </svg>
-                    <div class="donut-center-label">
-                      <span class="donut-center-percent tabular-nums" id="donut-center-pct">48%</span>
-                      <span class="donut-center-sub tabular-nums" id="donut-center-grams">120.5 g</span>
-                    </div>
-                  </div>
-
-                  <div class="donut-legend-row">
-                    <div class="donut-legend-item">
-                      <span class="legend-dot healthy"></span>
-                      <span>Healthy Ports (<b class="tabular-nums" id="legend-healthy-count">12</b>)</span>
-                    </div>
-                    <div class="donut-legend-item">
-                      <span class="legend-dot stressed"></span>
-                      <span>Stressed / Empty (<b class="tabular-nums" id="legend-stressed-count">0</b>)</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 2. Center — Autonomous AI Dosing & Reservoir Pill Gauges -->
-                <div class="botanical-card ai-pill-gauges-card">
-                  <div class="card-title-row" style="margin-bottom: 8px;">
-                    <div class="card-heading">
-                      <span>🤖 AI Stock & Tank Levels</span>
-                    </div>
-                    <span class="ai-status-tag">
-                      <span class="ai-pulse-dot" style="width: 5px; height: 5px;"></span>
-                      Closed-Loop Active
-                    </span>
-                  </div>
-
-                  <div class="vertical-pills-row">
-                    <!-- Pill 1: Stock A -->
-                    <div class="vertical-pill-col" id="col-gauge-stock-a">
-                      <div class="floating-dose-callout" id="callout-stock-a">🤖 AI Dosed +12 mL</div>
-                      <div class="vertical-pill-track" id="track-stock-a">
-                        <div class="vertical-pill-fill" id="fill-vertical-stock-a" style="height: 84%;">
-                          <span class="vertical-pill-pct tabular-nums" id="pct-vertical-stock-a">84%</span>
-                        </div>
-                      </div>
-                      <span class="vertical-pill-label">Stock A</span>
-                      <span class="vertical-pill-badge" id="badge-vertical-stock-a">Standby</span>
-                    </div>
-
-                    <!-- Pill 2: Stock B -->
-                    <div class="vertical-pill-col" id="col-gauge-stock-b">
-                      <div class="floating-dose-callout" id="callout-stock-b">🤖 AI Dosed +12 mL</div>
-                      <div class="vertical-pill-track" id="track-stock-b">
-                        <div class="vertical-pill-fill" id="fill-vertical-stock-b" style="height: 84%;">
-                          <span class="vertical-pill-pct tabular-nums" id="pct-vertical-stock-b">84%</span>
-                        </div>
-                      </div>
-                      <span class="vertical-pill-label">Stock B</span>
-                      <span class="vertical-pill-badge" id="badge-vertical-stock-b">Standby</span>
-                    </div>
-
-                    <!-- Pill 3: pH Down / Up -->
-                    <div class="vertical-pill-col" id="col-gauge-stock-ph">
-                      <div class="floating-dose-callout" id="callout-stock-ph">🤖 AI Dosed +2 mL</div>
-                      <div class="vertical-pill-track" id="track-stock-ph">
-                        <div class="vertical-pill-fill acid" id="fill-vertical-stock-ph" style="height: 92%;">
-                          <span class="vertical-pill-pct tabular-nums" id="pct-vertical-stock-ph">92%</span>
-                        </div>
-                      </div>
-                      <span class="vertical-pill-label">pH Buffer</span>
-                      <span class="vertical-pill-badge" id="badge-vertical-stock-ph">HNO₃ / KOH</span>
-                    </div>
-
-                    <!-- Pill 4: Water Tank -->
-                    <div class="vertical-pill-col" id="col-gauge-water-tank">
-                      <div class="floating-dose-callout" id="callout-water-tank">🤖 Top-Up Refill</div>
-                      <div class="vertical-pill-track" id="track-water-tank">
-                        <div class="vertical-pill-fill water" id="fill-vertical-water-tank" style="height: 82%;">
-                          <span class="vertical-pill-pct tabular-nums" id="pct-vertical-water-tank">82%</span>
-                        </div>
-                      </div>
-                      <span class="vertical-pill-label">Water Tank</span>
-                      <span class="vertical-pill-badge" id="badge-vertical-water-tank">98.4 L</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 3. Right — Floating "Recent Alerts & AI Detections" Card -->
-                <div class="botanical-card alerts-detection-card">
-                  <div class="card-title-row" style="margin-bottom: 6px;">
-                    <div class="card-heading">
-                      <span>🔔 Recent Alerts & AI Detections</span>
-                    </div>
-                  </div>
-
-                  <!-- 4 Filter Tabs -->
-                  <div class="alert-filter-tabs" id="alert-filter-tabs">
-                    <button class="alert-tab active" data-tab="open">Open</button>
-                    <button class="alert-tab" data-tab="farm">Farm</button>
-                    <button class="alert-tab" data-tab="sensors">Sensors</button>
-                    <button class="alert-tab" data-tab="plants">Plants</button>
-                  </div>
-
-                  <!-- Alerts List: Expanded top card + compact items -->
-                  <div class="alerts-feed-container" id="alerts-feed-container">
-                    <!-- Populated dynamically -->
-                  </div>
-                </div>
-              </div>
-
-              <!-- ==============================================================
-                   2. BOTTOM ROW: Charts & Live AI Command Ledger
-                   ============================================================== -->
-              <div class="farm-status-bottom-grid">
-                <!-- Left Column: Activity Bar Chart + Vitalities Area Spline Chart -->
-                <div class="bottom-left-column">
-                  <!-- Activity Bar Chart -->
-                  <div class="botanical-card bar-chart-card">
-                    <div class="card-title-row">
-                      <div class="card-heading">
-                        <span>📊 AI Dosing & Actuation Activity</span>
-                      </div>
-                      <div class="chart-timeframe-picker">
-                        <select class="timeframe-select" id="dosing-timeframe-select">
-                          <option value="24h" selected>Last 24 Hours</option>
-                          <option value="30d">Full 30 Days</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div class="dosing-bar-chart-wrap" id="dosing-bar-chart-wrap">
-                      <svg class="svg-bar-chart" id="svg-dosing-bar-chart" viewBox="0 0 540 100" preserveAspectRatio="none">
-                        <!-- Dynamic vertical rounded bars #4F9DA6 -->
-                      </svg>
-                    </div>
-                  </div>
-
-                  <!-- Vitalities Smooth Area Spline Chart -->
-                  <div class="botanical-card vitalities-card">
-                    <div class="card-title-row">
-                      <div class="card-heading">
-                        <span>🧬 Vitalities (Telemetry vs. Physics Ground Truth)</span>
-                      </div>
-                      <div class="metric-selector-wrapper">
-                        <select class="metric-select" id="vitality-metric-select">
-                          <option value="DO" selected>Dissolved Oxygen (DO)</option>
-                          <option value="EC">Nutrient EC</option>
-                          <option value="pH">Acidity pH</option>
-                          <option value="CLIMATE">Greenhouse Temp & VPD</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <!-- Legend and live comparison chips -->
-                    <div class="vitalities-legend-row">
-                      <div class="vitality-legend-item">
-                        <span class="vitality-dot teal"></span>
-                        <span id="label-vitality-line1">Tank Inlet / Noisy Sensor:</span>
-                        <b class="tabular-nums" id="val-vitality-line1">6.82 mg/L</b>
-                      </div>
-                      <div class="vitality-legend-item">
-                        <span class="vitality-dot emerald"></span>
-                        <span id="label-vitality-line2">Gully Outlet / Ground Truth:</span>
-                        <b class="tabular-nums" id="val-vitality-line2">6.80 mg/L</b>
-                      </div>
-                    </div>
-
-                    <div class="vitalities-spline-wrap" id="vitalities-spline-wrap">
-                      <svg class="svg-vitalities-chart" id="svg-vitalities-chart" viewBox="0 0 540 140" preserveAspectRatio="none">
-                        <defs>
-                          <linearGradient id="teal-area-grad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="#125B63" stop-opacity="0.32" />
-                            <stop offset="100%" stop-color="#125B63" stop-opacity="0.0" />
-                          </linearGradient>
-                          <linearGradient id="emerald-area-grad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="#16B364" stop-opacity="0.35" />
-                            <stop offset="100%" stop-color="#16B364" stop-opacity="0.0" />
-                          </linearGradient>
-                        </defs>
-                        <!-- Grid lines -->
-                        <line x1="20" y1="20" x2="520" y2="20" stroke="rgba(18, 91, 99, 0.06)" stroke-dasharray="3,3" />
-                        <line x1="20" y1="65" x2="520" y2="65" stroke="rgba(18, 91, 99, 0.06)" stroke-dasharray="3,3" />
-                        <line x1="20" y1="110" x2="520" y2="110" stroke="rgba(18, 91, 99, 0.06)" stroke-dasharray="3,3" />
-
-                        <!-- Area & Stroke Paths -->
-                        <path id="vitality-area-line1" d="" fill="url(#teal-area-grad)" />
-                        <path id="vitality-area-line2" d="" fill="url(#emerald-area-grad)" />
-                        <path id="vitality-stroke-line1" d="" fill="none" stroke="#125B63" stroke-width="2.5" />
-                        <path id="vitality-stroke-line2" d="" fill="none" stroke="#16B364" stroke-width="2.5" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Right Column: AI Autopilot & PLC Safety Ledger Table -->
-                <div class="botanical-card safety-ledger-card">
-                  <div class="card-title-row" style="margin-bottom: 8px;">
-                    <div class="card-heading">
-                      <span>🛡️ AI Autopilot & PLC Safety Ledger</span>
-                    </div>
-                    <span class="card-subtext" id="ledger-stats-subtext">All commands verified</span>
-                  </div>
-
-                  <div class="ledger-table-wrap">
-                    <table class="ledger-table">
-                      <thead>
-                        <tr>
-                          <th>Action / Command</th>
-                          <th>Target</th>
-                          <th>Safety Status</th>
-                          <th>Sim Time</th>
-                        </tr>
-                      </thead>
-                      <tbody id="ledger-table-body">
-                        <!-- Dynamically populated rows -->
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- VIEW 2: Gully Matrix & Layout Builder -->
-            <div class="workspace-view" id="view-gully-matrix">
-              <div class="botanical-card">
-                <div class="card-title-row">
-                  <div class="card-heading">
-                    <span>🌿 2D Gully Matrix Grid (A..D × 1..3)</span>
-                  </div>
-                  <button class="btn-ctrl" id="btn-open-layout-modal">+ Edit Farm Spec (JSON Schema)</button>
-                </div>
-                <div class="matrix-grid-container" id="matrix-grid-container">
-                  <!-- Dynamically rendered 2D cards for channels A1..D3 -->
-                </div>
-              </div>
-            </div>
-
-            <!-- VIEW 3: 2.5D Isometric Rack Overview -->
-            <div class="workspace-view" id="view-isometric-rack">
-              <div class="botanical-card">
-                <div class="card-title-row">
-                  <div class="card-heading">
-                    <span>📐 2.5D Pure SVG Isometric Rack Overview</span>
-                  </div>
-                  <div class="card-subtext">Angled Gully Parallelograms · Floating Anomaly Alert Pins</div>
-                </div>
-                <div class="isometric-stage" id="isometric-stage">
-                  <svg class="iso-rack-svg" viewBox="0 0 800 440" preserveAspectRatio="xMidYMid meet" id="svg-isometric-rack">
-                    <!-- Parallelogram gully planes and alert pins will be rendered dynamically -->
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            <!-- VIEW 4: Channel Deep-Dive (Column B1 Overview) -->
-            <div class="workspace-view" id="view-channel-deepdive">
-              <div class="botanical-card">
-                <div class="card-title-row">
-                  <div class="card-heading">
-                    <span>🔍 Column B1 Overview — Crop Growth Stages & DO Gradient</span>
-                  </div>
-                  <div class="card-subtext">Channel ID: ch-1 · Batavia Crisphead · 4-Stage Lifecycle</div>
-                </div>
-                <div class="growth-timeline-grid" id="growth-timeline-grid">
-                  <div class="timeline-stage-card" id="timeline-stage-1">
-                    <span class="timeline-sprout-icon">🌱</span>
-                    <strong style="font-size: 11px; color: var(--text-primary);">Stage 1: Germination</strong>
-                    <span class="card-subtext">Days 0–6 · Root Emergence</span>
-                  </div>
-                  <div class="timeline-stage-card" id="timeline-stage-2">
-                    <span class="timeline-sprout-icon">🌿</span>
-                    <strong style="font-size: 11px; color: var(--text-primary);">Stage 2: Seedling</strong>
-                    <span class="card-subtext">Days 7–14 · Rapid EC Uptake</span>
-                  </div>
-                  <div class="timeline-stage-card current" id="timeline-stage-3">
-                    <span class="timeline-sprout-icon">🥬</span>
-                    <strong style="font-size: 11px; color: var(--text-primary);">Stage 3: Vegetative Growth</strong>
-                    <span class="card-subtext">Days 15–24 · Maximum Leaf Mass</span>
-                  </div>
-                  <div class="timeline-stage-card" id="timeline-stage-4">
-                    <span class="timeline-sprout-icon">🥗</span>
-                    <strong style="font-size: 11px; color: var(--text-primary);">Stage 4: Harvest Ready</strong>
-                    <span class="card-subtext">Days 25–30 · 290g Target</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- VIEW 5: Judge / Proof View -->
-            <div class="workspace-view" id="view-judge-proof">
-              <div class="botanical-card">
-                <div class="card-title-row">
-                  <div class="card-heading">
-                    <span>🛡️ Judge / Proof View — Noisy Sensor vs. Physics Ground Truth</span>
-                  </div>
-                  <div class="card-subtext">Verification Matrix: Mathematical Residual Anomaly Detection</div>
-                </div>
-                <table class="proof-table" id="proof-table">
-                  <thead>
-                    <tr>
-                      <th>Component / Sensor</th>
-                      <th>Noisy Sensor Reading</th>
-                      <th>Hidden Ground Truth (Physics)</th>
-                      <th>Residual (Δ)</th>
-                      <th>Autopilot Inference</th>
-                    </tr>
-                  </thead>
-                  <tbody id="proof-table-body">
-                    <!-- Populated dynamically with sensor vs physics comparison -->
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
+        <!-- ============================================================
+             LIVE TELEMETRY KPI STRIP (6 columns)
+             ============================================================ -->
+        <section class="kpi-strip" aria-label="Live telemetry">
+          <div class="kpi">
+            <div class="kpi-label">Plant Food (EC)</div>
+            <div class="kpi-value"><span class="mono" id="kpi-ec">—</span><span class="kpi-unit">mS/cm</span></div>
+            <div class="kpi-src mono">sen-ec-1 · res-1</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Acidity (pH)</div>
+            <div class="kpi-value"><span class="mono" id="kpi-ph">—</span><span class="kpi-unit">pH</span></div>
+            <div class="kpi-src mono">sen-ph-1 · res-1</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Tank Oxygen (DO)</div>
+            <div class="kpi-value"><span class="mono" id="kpi-do-tank">—</span><span class="kpi-unit">mg/L</span></div>
+            <div class="kpi-src mono">model · res-1</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Root Outlet DO</div>
+            <div class="kpi-value"><span class="mono" id="kpi-do-outlet">—</span><span class="kpi-unit">mg/L</span></div>
+            <div class="kpi-src mono">sen-do-1 · ch-1</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Water Flow</div>
+            <div class="kpi-value"><span class="mono" id="kpi-flow">—</span><span class="kpi-unit">L/min</span></div>
+            <div class="kpi-src mono">rated · pump-1</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Greenhouse VPD</div>
+            <div class="kpi-value"><span class="mono" id="kpi-vpd">—</span><span class="kpi-unit">kPa</span></div>
+            <div class="kpi-src mono">derived · T_air / RH</div>
           </div>
         </section>
 
-        <!-- ================================================================
-             ZONE 3: Right Inspector Panel — "Quick Details" (310px width, #ECF1F0)
-             ================================================================ -->
-        <aside class="quick-details-panel" aria-label="Quick Details Inspector">
-          <!-- Quick Details Header -->
-          <div class="quick-details-header">
-            <h2 class="quick-details-title">Quick Details</h2>
-            <span class="quick-details-chip" id="chip-active-preset">EXP.2</span>
-          </div>
-
-          <!-- 1. Alerts Summary Block (Last 24 hours) -->
-          <div class="alerts-summary-block">
-            <div class="alerts-block-header">
-              <span>Alerts Summary</span>
-              <span>Last 24 hours</span>
-            </div>
-
-            <!-- Critical Row -->
-            <div class="alert-row">
-              <div class="status-circle-icon critical" title="Critical Hardware Fault">✕</div>
-              <div class="alert-row-body">
-                <div class="alert-row-top">
-                  <span class="alert-row-type">Critical</span>
-                  <span class="alert-row-count tabular-nums" id="alert-count-critical">0</span>
+        <!-- ============================================================
+             WORKSPACE
+             ============================================================ -->
+        <main class="workspace" id="center-content-scroll">
+          <!-- ======================= VIEW 1: FARM STATUS ======================= -->
+          <div class="view active" id="view-farm-status">
+            <!-- Row 1 -->
+            <div class="grid12">
+              <!-- Biomass & Ports -->
+              <section class="panel col-4">
+                <div class="panel-head">
+                  <span class="panel-title">Biomass &amp; Ports</span>
+                  <span class="panel-aside mono" id="bio-stage">STAGE 1</span>
                 </div>
-                <p class="alert-row-headline" id="alert-headline-critical">No active hardware failures</p>
-              </div>
-            </div>
+                <div class="panel-body">
+                  <div class="stat-row">
+                    <div class="stat"><div class="stat-label">Active Gullies</div><div class="stat-value mono" id="bio-gullies">—</div></div>
+                    <div class="stat"><div class="stat-label">Ports Filled</div><div class="stat-value mono" id="bio-ports">—</div></div>
+                    <div class="stat"><div class="stat-label">Lettuce</div><div class="stat-value mono" id="bio-plants">—</div></div>
+                  </div>
 
-            <!-- Warning Row -->
-            <div class="alert-row">
-              <div class="status-circle-icon warning" title="Sensor Drift or Pre-Stress Warning">!</div>
-              <div class="alert-row-body">
-                <div class="alert-row-top">
-                  <span class="alert-row-type">Warnings</span>
-                  <span class="alert-row-count tabular-nums" id="alert-count-warning">0</span>
+                  <div class="metric-line">
+                    <span class="metric-label">Biomass / head</span>
+                    <span class="mono metric-val"><b id="bio-fw">—</b> / <span id="bio-target">—</span> g</span>
+                  </div>
+                  <div class="segbar" id="bio-segbar"></div>
+                  <div class="metric-line sub">
+                    <span class="mono" id="bio-pct">0.0% OF HARVEST WEIGHT</span>
+                    <span class="mono" id="bio-day">D00 / 30</span>
+                  </div>
+
+                  <div class="metric-line" style="margin-top: 14px">
+                    <span class="metric-label">Port Status Matrix</span>
+                    <span class="legend mono">
+                      <span><i class="port ok"></i>OK <b id="bio-ok">0</b></span>
+                      <span><i class="port stress"></i>STRESSED <b id="bio-stress">0</b></span>
+                    </span>
+                  </div>
+                  <div class="port-grid" id="bio-port-grid"></div>
                 </div>
-                <p class="alert-row-headline" id="alert-headline-warning">Sensor probes within ±2% calibration</p>
-              </div>
-            </div>
+              </section>
 
-            <!-- Information Row -->
-            <div class="alert-row">
-              <div class="status-circle-icon info" title="Routine AI Dosing & PLC Verified Events">i</div>
-              <div class="alert-row-body">
-                <div class="alert-row-top">
-                  <span class="alert-row-type">Information</span>
-                  <span class="alert-row-count tabular-nums" id="alert-count-info">0</span>
+              <!-- Chemical & Tank Levels -->
+              <section class="panel col-4">
+                <div class="panel-head">
+                  <span class="panel-title">Chemical &amp; Tank Levels</span>
+                  <span class="panel-aside mono"><span class="dot ok"></span>CLOSED LOOP</span>
                 </div>
-                <p class="alert-row-headline" id="alert-headline-info">System armed and observing sensors</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- 2. Active Controller & Season Info -->
-          <div class="controller-info-block">
-            <div class="info-kv-row">
-              <span class="info-kv-label">Simulation ID</span>
-              <span class="info-kv-value tabular-nums" id="info-sim-id" title="Click to copy simulation ID">loading...</span>
-            </div>
-            <div class="info-kv-row">
-              <span class="info-kv-label">Active Farm Preset</span>
-              <span class="info-kv-value" id="info-farm-preset">Alexandria Optimal EXP.2</span>
-            </div>
-            <div class="info-kv-row">
-              <span class="info-kv-label">AI Autopilot Loop</span>
-              <span class="info-kv-value" style="color: var(--accent-emerald-dark);" id="info-autopilot-status">Active (Closed-Loop)</span>
-            </div>
-            <div class="info-kv-row">
-              <span class="info-kv-label">PLC Guardian Interlock</span>
-              <span class="info-kv-value" id="info-plc-status">Armed (0 Rejections)</span>
-            </div>
-          </div>
-
-          <!-- 3. Plants & Harvest Readiness (Circular SVG Ring) -->
-          <div class="plants-harvest-block">
-            <div class="progress-ring-container">
-              <svg class="progress-ring-svg">
-                <circle
-                  class="progress-ring-bg"
-                  stroke-width="5"
-                  fill="transparent"
-                  r="26"
-                  cx="32"
-                  cy="32"
-                />
-                <circle
-                  class="progress-ring-circle"
-                  id="harvest-progress-circle"
-                  stroke-width="5"
-                  fill="transparent"
-                  r="26"
-                  cx="32"
-                  cy="32"
-                  stroke-dasharray="163.36"
-                  stroke-dashoffset="163.36"
-                />
-              </svg>
-              <div class="progress-ring-center-icon">🥬</div>
-            </div>
-            <div class="plants-harvest-details">
-              <span class="plants-total-count" id="plants-total-count">Lettuce: 84 plants</span>
-              <span class="harvest-day-eta tabular-nums" id="harvest-day-eta">Nearest harvest: Day 30</span>
-              <span class="growth-stage-tag" id="growth-stage-tag">Stage: Seedling (Day 0)</span>
-            </div>
-          </div>
-
-          <!-- 4. Live Hydroponic Telemetry Table -->
-          <div class="telemetry-table-block">
-            <div class="telemetry-table-title">Live Hydroponic Telemetry</div>
-            <div class="telemetry-table-list">
-              <div class="telemetry-row">
-                <span class="telemetry-name">Plant Food (EC)</span>
-                <span class="telemetry-val tabular-nums" id="live-ec">1.82 mS/cm</span>
-              </div>
-              <div class="telemetry-row">
-                <span class="telemetry-name">Acidity (pH)</span>
-                <span class="telemetry-val tabular-nums" id="live-ph">5.92</span>
-              </div>
-              <div class="telemetry-row">
-                <span class="telemetry-name">Tank Oxygen (DO)</span>
-                <span class="telemetry-val tabular-nums" id="live-do-tank">7.9 mg/L</span>
-              </div>
-              <div class="telemetry-row">
-                <span class="telemetry-name">Root Outlet DO</span>
-                <span class="telemetry-val tabular-nums" id="live-do-outlet">6.8 mg/L</span>
-              </div>
-              <div class="telemetry-row">
-                <span class="telemetry-name">Water Flow</span>
-                <span class="telemetry-val tabular-nums" id="live-flow">2.4 L/min</span>
-              </div>
-              <div class="telemetry-row">
-                <span class="telemetry-name">Greenhouse VPD</span>
-                <span class="telemetry-val tabular-nums" id="live-vpd">0.95 kPa</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 5. Bottom Action Button: Challenge AI (Inject Fault) -->
-          <div class="quick-details-bottom">
-            <button class="btn-challenge-ai" id="btn-open-challenge" title="Inject physical perturbations and watch AI & PLC respond">
-              <span>⚡</span>
-              <span>Challenge AI (Inject Fault)</span>
-            </button>
-          </div>
-        </aside>
-      </main>
-
-      <!-- ================================================================
-           MODAL 1: Challenge AI — Chaos Fault Injection Popover
-           ================================================================ -->
-      <div class="modal-backdrop" id="modal-challenge-backdrop">
-        <div class="modal-card">
-          <div class="modal-header">
-            <div class="modal-title">
-              <span>⚡ Chaos Testing — Challenge AI & PLC Guardian</span>
-            </div>
-            <button class="modal-close-btn" id="modal-challenge-close" title="Close">&times;</button>
-          </div>
-          <div class="modal-body">
-            <div class="modal-field-group">
-              <label class="modal-label">1. Select Fault Perturbation (Module 12 Physics Engine)</label>
-              <div class="fault-grid-options">
-                <button class="fault-option-btn selected" data-kind="pump_degradation" data-target="pump-1" data-intensity="0.85">
-                  <span class="fault-icon">⚙️</span>
-                  <div class="fault-option-info">
-                    <span class="fault-option-title">Clog the Pump</span>
-                    <span class="fault-option-desc">Loss of 85% volumetric flow. DO drops at gully outlet.</span>
+                <div class="panel-body lvl-list">
+                  <div class="lvl-row" id="lvl-a">
+                    <div class="lvl-top">
+                      <span class="lvl-name">Stock A</span>
+                      <span class="lvl-formula mono">PART A · N / Ca</span>
+                      <span class="lvl-state mono" id="lvl-a-state">STANDBY</span>
+                      <span class="lvl-pct mono" id="lvl-a-pct">100%</span>
+                    </div>
+                    <div class="bar"><div class="bar-fill" id="lvl-a-fill" style="width: 100%"></div></div>
                   </div>
-                </button>
-
-                <button class="fault-option-btn" data-kind="aeration_loss" data-target="aer-1" data-intensity="0.90">
-                  <span class="fault-icon">🫧</span>
-                  <div class="fault-option-info">
-                    <span class="fault-option-title">Cut Air Bubbler</span>
-                    <span class="fault-option-desc">90% loss of sparged oxygen OTR in main reservoir.</span>
+                  <div class="lvl-row" id="lvl-b">
+                    <div class="lvl-top">
+                      <span class="lvl-name">Stock B</span>
+                      <span class="lvl-formula mono">PART B · P / K / Mg</span>
+                      <span class="lvl-state mono" id="lvl-b-state">STANDBY</span>
+                      <span class="lvl-pct mono" id="lvl-b-pct">100%</span>
+                    </div>
+                    <div class="bar"><div class="bar-fill" id="lvl-b-fill" style="width: 100%"></div></div>
                   </div>
-                </button>
-
-                <button class="fault-option-btn" data-kind="probe_drift" data-target="sen-ph-1" data-intensity="0.00000926">
-                  <span class="fault-icon">📉</span>
-                  <div class="fault-option-info">
-                    <span class="fault-option-title">pH Probe Drift</span>
-                    <span class="fault-option-desc">+0.8 pH/day bias. Water is safe, probe is lying.</span>
+                  <div class="lvl-row" id="lvl-ph">
+                    <div class="lvl-top">
+                      <span class="lvl-name">pH Buffer</span>
+                      <span class="lvl-formula mono">HNO₃ / KOH · 0.5 M</span>
+                      <span class="lvl-state mono" id="lvl-ph-state">STANDBY</span>
+                      <span class="lvl-pct mono" id="lvl-ph-pct">100%</span>
+                    </div>
+                    <div class="bar"><div class="bar-fill slate" id="lvl-ph-fill" style="width: 100%"></div></div>
                   </div>
-                </button>
-
-                <button class="fault-option-btn" data-kind="heat_wave" data-target="enc-1" data-intensity="6.0">
-                  <span class="fault-icon">🌡️</span>
-                  <div class="fault-option-info">
-                    <span class="fault-option-title">Alexandria Heat Wave</span>
-                    <span class="fault-option-desc">+6.0 °C ambient spike with elevated leaf transpiration.</span>
+                  <div class="lvl-row" id="lvl-water">
+                    <div class="lvl-top">
+                      <span class="lvl-name">Water Tank</span>
+                      <span class="lvl-formula mono">RES-1 · NILE FRESH</span>
+                      <span class="lvl-state mono" id="lvl-water-state">— L</span>
+                      <span class="lvl-pct mono" id="lvl-water-pct">—</span>
+                    </div>
+                    <div class="bar"><div class="bar-fill" id="lvl-water-fill" style="width: 0%"></div></div>
                   </div>
-                </button>
+                </div>
+              </section>
 
-                <button class="fault-option-btn" data-kind="reservoir_leak" data-target="res-1" data-intensity="0.000001">
-                  <span class="fault-icon">💧</span>
-                  <div class="fault-option-info">
-                    <span class="fault-option-title">Puncture Tank</span>
-                    <span class="fault-option-desc">1 mm² orifice leak. Level drops faster than crop intake.</span>
-                  </div>
-                </button>
-
-                <button class="fault-option-btn" data-kind="nutrient_imbalance" data-target="stock-a" data-intensity="3.0">
-                  <span class="fault-icon">🧪</span>
-                  <div class="fault-option-info">
-                    <span class="fault-option-title">Mis-Mix Stock A</span>
-                    <span class="fault-option-desc">Stock A mixed 300% too strong. AI catches EC jump.</span>
-                  </div>
-                </button>
-              </div>
+              <!-- Recent Alerts & Detections -->
+              <section class="panel col-4">
+                <div class="panel-head">
+                  <span class="panel-title">Alerts &amp; Detections</span>
+                  <span class="count-pills mono">
+                    <span class="pill crit">CRIT <b id="cnt-crit">0</b></span>
+                    <span class="pill warn">WARN <b id="cnt-warn">0</b></span>
+                    <span class="pill info">INFO <b id="cnt-info">0</b></span>
+                  </span>
+                </div>
+                <div class="tabs" id="alert-filter-tabs">
+                  <button class="tab active" data-tab="open">Open</button>
+                  <button class="tab" data-tab="farm">Farm</button>
+                  <button class="tab" data-tab="sensors">Sensors</button>
+                  <button class="tab" data-tab="plants">Plants</button>
+                </div>
+                <div class="panel-body feed" id="alerts-feed-container"></div>
+              </section>
             </div>
 
-            <!-- Active Faults Summary in Modal -->
-            <div class="modal-field-group">
-              <div class="card-title-row" style="margin-bottom: 6px;">
-                <label class="modal-label">Currently Active Perturbations</label>
-                <button class="btn-clear-single" id="btn-clear-all-faults">Clear All</button>
+            <!-- Row 2 -->
+            <div class="grid12 row-eq">
+              <div class="col-7 stack">
+                <!-- Vitalities -->
+                <section class="panel">
+                  <div class="panel-head">
+                    <span class="panel-title">Vitalities · Telemetry vs. Physics Ground Truth</span>
+                    <div class="select-wrap">
+                      <select class="select select-sm mono" id="vitality-metric-select">
+                        <option value="DO" selected>Dissolved Oxygen</option>
+                        <option value="EC">Nutrient EC</option>
+                        <option value="pH">Acidity pH</option>
+                        <option value="CLIMATE">Temperature</option>
+                      </select>
+                      <svg class="ico ico-12 select-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
+                    </div>
+                  </div>
+                  <div class="panel-body">
+                    <div class="legend-row mono">
+                      <span><i class="swatch teal"></i><span id="label-vitality-line1">SENSOR</span> <b id="val-vitality-line1">—</b></span>
+                      <span><i class="swatch slate"></i><span id="label-vitality-line2">GROUND TRUTH</span> <b id="val-vitality-line2">—</b></span>
+                      <span class="legend-delta">Δ <b id="val-vitality-delta">—</b></span>
+                    </div>
+                    <svg class="chart chart-vital" id="svg-vitalities-chart"></svg>
+                  </div>
+                </section>
+
+                <!-- Activity -->
+                <section class="panel">
+                  <div class="panel-head">
+                    <span class="panel-title">AI Dosing &amp; Actuation Activity</span>
+                    <div class="select-wrap">
+                      <select class="select select-sm mono" id="dosing-timeframe-select">
+                        <option value="24h" selected>Last 24 h</option>
+                        <option value="30d">Full 30 days</option>
+                      </select>
+                      <svg class="ico ico-12 select-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
+                    </div>
+                  </div>
+                  <div class="panel-body">
+                    <div class="legend-row mono">
+                      <span><i class="swatch teal"></i>CHEMICAL DOSE (mL)</span>
+                      <span><i class="swatch slate"></i>WATER REFILL (L)</span>
+                      <span class="legend-delta" id="activity-total">0.0 mL · 0.0 L</span>
+                    </div>
+                    <svg class="chart chart-bars" id="svg-dosing-bar-chart"></svg>
+                  </div>
+                </section>
               </div>
-              <div class="active-faults-list" id="modal-active-faults-list">
-                <span style="font-size: 11px; color: var(--text-secondary);">No physical faults active in the loop.</span>
-              </div>
+
+              <!-- Safety Ledger -->
+              <section class="panel col-5 ledger">
+                <div class="panel-head">
+                  <span class="panel-title">AI Autopilot &amp; PLC Safety Ledger</span>
+                  <span class="panel-aside mono" id="ledger-stats-subtext">0 APPLIED · 0 BLOCKED</span>
+                </div>
+                <div class="ledger-scroll">
+                  <table class="tbl">
+                    <thead>
+                      <tr><th>Action / Command</th><th>Target</th><th>Safety</th><th class="r">Sim Time</th></tr>
+                    </thead>
+                    <tbody id="ledger-table-body"></tbody>
+                  </table>
+                </div>
+              </section>
             </div>
           </div>
-          <div class="modal-footer">
-            <button class="btn-secondary" id="modal-challenge-cancel">Cancel</button>
-            <button class="btn-primary-action" id="btn-inject-selected-fault">⚡ Inject Fault Perturbation</button>
+
+          <!-- ======================= VIEW 2: GULLY MATRIX ======================= -->
+          <div class="view" id="view-gully-matrix">
+            <section class="panel">
+              <div class="panel-head">
+                <span class="panel-title">Gully Matrix · A–D × 1–3</span>
+                <button class="btn mono" id="btn-open-layout-modal">Edit Farm Spec</button>
+              </div>
+              <div class="panel-body">
+                <div class="matrix" id="matrix-grid-container"></div>
+              </div>
+            </section>
           </div>
-        </div>
+
+          <!-- ======================= VIEW 3: RACK OVERVIEW ======================= -->
+          <div class="view" id="view-isometric-rack">
+            <section class="panel">
+              <div class="panel-head">
+                <span class="panel-title">Rack Overview · Isometric</span>
+                <span class="panel-aside mono">GULLY PLANES · ALERT PINS</span>
+              </div>
+              <div class="panel-body">
+                <svg class="iso" viewBox="0 0 800 440" preserveAspectRatio="xMidYMid meet" id="svg-isometric-rack"></svg>
+              </div>
+            </section>
+          </div>
+
+          <!-- ======================= VIEW 4: CHANNEL DEEP-DIVE ======================= -->
+          <div class="view" id="view-channel-deepdive">
+            <section class="panel">
+              <div class="panel-head">
+                <span class="panel-title">Channel B1 · Growth Lifecycle</span>
+                <span class="panel-aside mono">CH-1 · BATAVIA CRISPHEAD</span>
+              </div>
+              <div class="panel-body">
+                <div class="timeline" id="growth-timeline-grid">
+                  <div class="tl-stage" data-stage="1"><span class="tl-num mono">01</span><b>Germination</b><span class="mono">D00–D06 · ROOT EMERGENCE</span></div>
+                  <div class="tl-stage" data-stage="2"><span class="tl-num mono">02</span><b>Seedling</b><span class="mono">D06–D14 · RAPID EC UPTAKE</span></div>
+                  <div class="tl-stage" data-stage="3"><span class="tl-num mono">03</span><b>Vegetative Growth</b><span class="mono">D14–D25 · MAX LEAF MASS</span></div>
+                  <div class="tl-stage" data-stage="4"><span class="tl-num mono">04</span><b>Canopy / Harvest</b><span class="mono">D25–D30 · TARGET WEIGHT</span></div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- ======================= VIEW 5: JUDGE / PROOF ======================= -->
+          <div class="view" id="view-judge-proof">
+            <section class="panel">
+              <div class="panel-head">
+                <span class="panel-title">Noisy Sensor vs. Physics Ground Truth</span>
+                <span class="panel-aside mono">RESIDUAL ANOMALY DETECTION</span>
+              </div>
+              <table class="tbl">
+                <thead>
+                  <tr><th>Component / Sensor</th><th class="r">Sensor</th><th class="r">Ground Truth</th><th class="r">Residual Δ</th><th>Inference</th></tr>
+                </thead>
+                <tbody id="proof-table-body"></tbody>
+              </table>
+            </section>
+          </div>
+        </main>
       </div>
-
-      <!-- ================================================================
-           MODAL 2: Custom Farm Layout Builder
-           ================================================================ -->
-      <div class="modal-backdrop" id="modal-layout-backdrop">
-        <div class="modal-card">
-          <div class="modal-header">
-            <div class="modal-title">
-              <span>🛠️ Custom Farm Layout Builder (schema/farm.schema.json)</span>
-            </div>
-            <button class="modal-close-btn" id="modal-layout-close" title="Close">&times;</button>
-          </div>
-          <div class="modal-body">
-            <div class="modal-field-group">
-              <label class="modal-label">Channels / Gullies Count (A..D)</label>
-              <div class="modal-slider-row">
-                <input type="range" class="modal-slider" id="slider-channel-count" min="1" max="12" value="2" />
-                <span class="modal-slider-val tabular-nums" id="val-channel-count">2</span>
-              </div>
-            </div>
-
-            <div class="modal-field-group">
-              <label class="modal-label">Plants Per Channel</label>
-              <div class="modal-slider-row">
-                <input type="range" class="modal-slider" id="slider-plants-per-channel" min="4" max="24" value="6" />
-                <span class="modal-slider-val tabular-nums" id="val-plants-per-channel">6</span>
-              </div>
-            </div>
-
-            <div class="modal-field-group">
-              <label class="modal-label">Reservoir Tank Volume (L)</label>
-              <div class="modal-slider-row">
-                <input type="range" class="modal-slider" id="slider-tank-volume" min="50" max="1000" step="10" value="100" />
-                <span class="modal-slider-val tabular-nums" id="val-tank-volume">100 L</span>
-              </div>
-            </div>
-
-            <div class="modal-field-group">
-              <label class="modal-label">Recirculation Pump Flow Rate (L/min)</label>
-              <div class="modal-slider-row">
-                <input type="range" class="modal-slider" id="slider-pump-flow" min="1" max="25" step="0.5" value="3.0" />
-                <span class="modal-slider-val tabular-nums" id="val-pump-flow">3.0 L/m</span>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button class="btn-secondary" id="modal-layout-cancel">Cancel</button>
-            <button class="btn-ctrl active" id="btn-apply-custom-farm">Build & Start Digital Twin</button>
-          </div>
-        </div>
-      </div>
-
     </div>
 
-    <!-- Application Script Entry Point -->
+    <!-- ============================================================
+         MODAL: FAULT INJECTION
+         ============================================================ -->
+    <div class="modal-backdrop" id="modal-challenge-backdrop">
+      <div class="modal">
+        <div class="modal-head">
+          <span class="panel-title">Inject Fault · Chaos Test</span>
+          <button class="btn btn-icon btn-ghost" id="modal-challenge-close" aria-label="Close">
+            <svg class="ico ico-14" viewBox="0 0 24 24"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="field-label">Perturbation · Module 12 physics engine</div>
+          <div class="fault-grid">
+            <button class="fault-opt selected" data-kind="pump_degradation">
+              <span class="code mono">PUMP_DEGRADATION · pump-1</span>
+              <b>Clog the pump</b>
+              <span>85% loss of volumetric flow. Outlet DO falls.</span>
+            </button>
+            <button class="fault-opt" data-kind="aeration_loss">
+              <span class="code mono">AERATION_LOSS · aer-1</span>
+              <b>Cut the air bubbler</b>
+              <span>90% loss of sparged oxygen transfer in the tank.</span>
+            </button>
+            <button class="fault-opt" data-kind="probe_drift">
+              <span class="code mono">PROBE_DRIFT · sen-ph-1</span>
+              <b>pH probe drift</b>
+              <span>+0.8 pH/day bias. Water is fine; the probe lies.</span>
+            </button>
+            <button class="fault-opt" data-kind="heat_wave">
+              <span class="code mono">HEAT_WAVE · enc-1</span>
+              <b>Heat wave +6 °C</b>
+              <span>Ambient spike with elevated transpiration.</span>
+            </button>
+            <button class="fault-opt" data-kind="reservoir_leak">
+              <span class="code mono">RESERVOIR_LEAK · res-1</span>
+              <b>Puncture the tank</b>
+              <span>1 mm² orifice. Level drops faster than uptake.</span>
+            </button>
+            <button class="fault-opt" data-kind="nutrient_imbalance">
+              <span class="code mono">NUTRIENT_IMBALANCE · stock-a</span>
+              <b>Mis-mix Stock A</b>
+              <span>Stock A at 300% strength. EC overshoots per dose.</span>
+            </button>
+          </div>
+
+          <div class="field-label row-between">
+            <span>Active perturbations</span>
+            <button class="btn btn-xs mono" id="btn-clear-all-faults">CLEAR ALL</button>
+          </div>
+          <div class="fault-active" id="modal-active-faults-list"></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn mono" id="modal-challenge-cancel">CANCEL</button>
+          <button class="btn btn-danger mono" id="btn-inject-selected-fault">INJECT</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         MODAL: CUSTOM LAYOUT
+         ============================================================ -->
+    <div class="modal-backdrop" id="modal-layout-backdrop">
+      <div class="modal">
+        <div class="modal-head">
+          <span class="panel-title">Custom Farm Layout · farm.schema.json</span>
+          <button class="btn btn-icon btn-ghost" id="modal-layout-close" aria-label="Close">
+            <svg class="ico ico-14" viewBox="0 0 24 24"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="field-label">Channels / gullies</div>
+          <div class="slider-row"><input type="range" id="slider-channel-count" min="1" max="12" value="2" /><span class="mono" id="val-channel-count">2</span></div>
+          <div class="field-label">Plants per channel</div>
+          <div class="slider-row"><input type="range" id="slider-plants-per-channel" min="4" max="24" value="6" /><span class="mono" id="val-plants-per-channel">6</span></div>
+          <div class="field-label">Reservoir volume</div>
+          <div class="slider-row"><input type="range" id="slider-tank-volume" min="50" max="1000" step="10" value="100" /><span class="mono" id="val-tank-volume">100 L</span></div>
+          <div class="field-label">Pump rated flow</div>
+          <div class="slider-row"><input type="range" id="slider-pump-flow" min="1" max="25" step="0.5" value="3.0" /><span class="mono" id="val-pump-flow">3.0 L/min</span></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn mono" id="modal-layout-cancel">CANCEL</button>
+          <button class="btn btn-primary mono" id="btn-apply-custom-farm">BUILD &amp; START</button>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
