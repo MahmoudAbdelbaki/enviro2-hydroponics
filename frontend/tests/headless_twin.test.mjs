@@ -11,7 +11,7 @@ import { TwinSession } from '../src/sim/session.js';
 import { PRESETS, getPreset } from '../src/domain/presets.js';
 import { FAULTS } from '../src/domain/faults.js';
 
-const api = createApi({ baseUrl: process.env.HYDRO_API_URL || 'http://127.0.0.1:8080', mlKey: process.env.HYDRO_ML_API_KEY || 'sensor-x-dev-ml-key' });
+const api = createApi({ baseUrl: process.env.HYDRO_API_URL || 'http://localhost:8080', mlKey: process.env.HYDRO_ML_API_KEY || 'dev-ml-secret-key' });
 const only = process.argv[2];
 let failures = 0;
 const ok = (cond, msg) => { console.log(`${cond ? '  PASS' : '  FAIL'}  ${msg}`); if (!cond) failures++; };

@@ -30,17 +30,5 @@ services:
     ports:
       - "8080:8080"
 
-  hydro-agent:
-    build:
-      context: .
-      dockerfile: Dockerfile.agent
-    depends_on:
-      - hydro
-    environment:
-      HYDRO_TWIN_URL: "http://hydro:8080"
-      HYDRO_ML_API_KEY: "sensor-x-dev-ml-key"
-      HYDRO_LOG_LEVEL: "info"
-    restart: unless-stopped
-
 volumes:
   pgdata:

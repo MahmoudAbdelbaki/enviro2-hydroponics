@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 
 // The Go backend (./bin/hydro) listens on :8080 by default.
 // In dev we proxy the API so the browser talks to a single origin.
-const target = process.env.HYDRO_API_URL || 'http://127.0.0.1:8080';
+const target = process.env.HYDRO_API_URL || 'http://localhost:8080';
 
 export default defineConfig({
   server: {
