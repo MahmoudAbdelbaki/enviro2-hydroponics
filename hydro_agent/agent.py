@@ -19,6 +19,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from hydro_agent.client.twin_client import TwinClient
+from hydro_agent.client.ingestion import TelemetryIngestionGuard
 from hydro_agent.models.model1_microclimate import (
     CoupledStates,
     FacilityParameters,
@@ -85,10 +86,12 @@ class HydroAutonomousAgent:
         self.m4_crop = CropBiomassEngine()
         self.m5_diagnostics = FaultResidualAnomalyDetector()
         self.m6_controller = FertigationSafetyController()
+        self.ingestion_guard = TelemetryIngestionGuard()
 
         # Operational state memory
         self.last_chemical_dose_sec: float = 0.0
         self.last_command: Optional[ActuationCommand] = None
+        self.hold_alert_latch: Dict[str, float] = {}
 
     def process_telemetry_batch(
         self,
@@ -101,22 +104,38 @@ class HydroAutonomousAgent:
         weather = weather or OutdoorWeather()
 
         # ----------------------------------------------------------------------
-        # Step 1: Telemetry Preprocessing & Mapping
+        # Step 1: Telemetry Cleaning, Forward-Fill & Stall Detection
         # ----------------------------------------------------------------------
+        cleaned_points, stall_alerts = self.ingestion_guard.clean_telemetry_batch(
+            raw_readings=raw_readings,
+            sim_time_sec=sim_time_sec,
+        )
+
+        for stall in stall_alerts:
+            try:
+                self.client.post_alert(simulation_id, asdict(stall))
+                logger.warning("Dispatched Stall Alert [%s]: %s", stall.code, stall.message)
+            except Exception as e:
+                logger.error("Failed to dispatch stall alert to Go backend: %s", e)
+
         telemetry_points = [
             TelemetryPoint(
-                kind=r.get("kind", ""),
-                sensor_id=r.get("sensor_id", ""),
-                value=float(r.get("value", 0.0)),
-                unit=r.get("unit", ""),
-                component_id=r.get("component_id"),
-                tick_index=r.get("tick_index"),
-                sim_time_sec=float(r.get("sim_time_sec", sim_time_sec)),
+                kind=cp.kind,
+                sensor_id=cp.sensor_id,
+                value=cp.value,
+                unit=cp.unit,
+                component_id=cp.component_id,
+                tick_index=cp.tick_index,
+                sim_time_sec=cp.sim_time_sec,
             )
-            for r in raw_readings
-            if r.get("value") is not None
+            for cp in cleaned_points
         ]
-        sensor_map = {pt.kind: pt.value for pt in telemetry_points}
+        # Keep the latest reading for each sensor kind
+        sensor_map = {}
+        for pt in telemetry_points:
+            if pt.kind not in sensor_map:
+                sensor_map[pt.kind] = pt.value
+        target_res_id = self.ingestion_guard.resolved_reservoir_id
 
         v_res = sensor_map.get("V_res", 88.5)
         ec_val = sensor_map.get("EC", 2.01)
@@ -198,6 +217,7 @@ class HydroAutonomousAgent:
                 twin_reference_states=twin_refs,
                 actuator_context=ActuatorContext(
                     last_chemical_dose_sec=self.last_chemical_dose_sec,
+                    target_reservoir_id=target_res_id,
                 ),
             )
         )
@@ -234,6 +254,7 @@ class HydroAutonomousAgent:
                     buffer_capacity_meq_l_ph=m3_out.bulk_properties.buffer_capacity_meq_l_ph,
                     last_chemical_dose_sec=self.last_chemical_dose_sec,
                 ),
+                target_component_id=target_res_id,
             )
         )
 
@@ -244,9 +265,46 @@ class HydroAutonomousAgent:
             or m6_command.dose_stock_a_ml > 0.0
             or m6_command.dose_acid_ml > 0.0
         )
+
+        # Audit check: Handle suppressed / held decisions and alert the frontend audit trail
+        decision_audit = m6_command.audit
+        if decision_audit and decision_audit.suppressed:
+            # Check rate limiting / deduplication (only once per hold event or every 1800s)
+            hold_key = decision_audit.interlock_triggered or "GENERIC_HOLD"
+            last_hold_time = self.hold_alert_latch.get(hold_key, -1e9)
+            if (sim_time_sec - last_hold_time) >= 1800.0:
+                self.hold_alert_latch[hold_key] = sim_time_sec
+                suppressed_msg = (
+                    f"Model 6 formulated dose (Refill: {decision_audit.raw_refill_l:.1f}L, "
+                    f"Stock: +{decision_audit.raw_dose_stock_a_ml:.1f}mL, "
+                    f"Acid: +{decision_audit.raw_dose_acid_ml:.1f}mL), but action was HELD by "
+                    f"{decision_audit.interlock_triggered}: {decision_audit.hold_reason}."
+                )
+                try:
+                    hold_alert_payload = {
+                        "component_id": target_res_id,
+                        "severity": "info",
+                        "code": "DOSING_HOLD_INTERLOCK",
+                        "message": suppressed_msg,
+                    }
+                    self.client.post_alert(simulation_id, hold_alert_payload)
+                    logger.info("Dispatched Informational Audit Alert [DOSING_HOLD_INTERLOCK]: %s", suppressed_msg)
+                except Exception as e:
+                    logger.error("Failed to dispatch dosing hold alert to Go backend: %s", e)
+
+        # Dispatch safe command to Go backend if action remains
         if has_action:
+            cmd_payload = {
+                "target_component_id": m6_command.target_component_id,
+                "action": m6_command.action,
+                "refill_water_l": m6_command.refill_water_l,
+                "dose_stock_a_ml": m6_command.dose_stock_a_ml,
+                "dose_stock_b_ml": m6_command.dose_stock_b_ml,
+                "dose_acid_ml": m6_command.dose_acid_ml,
+                "reason": m6_command.reason,
+            }
             try:
-                command_audit = self.client.send_command(simulation_id, m6_command.to_dict())
+                command_audit = self.client.send_command(simulation_id, cmd_payload)
                 if m6_command.dose_stock_a_ml > 0.0 or m6_command.dose_acid_ml > 0.0:
                     self.last_chemical_dose_sec = sim_time_sec
                 self.last_command = m6_command
@@ -271,7 +329,7 @@ class HydroAutonomousAgent:
 
     def run_polling_step(self, simulation_id: str) -> Dict[str, Any]:
         """Fetch latest telemetry from Go backend and run one agent evaluation step."""
-        readings_payload = self.client.get_readings(simulation_id)
+        readings_payload = self.client.get_readings(simulation_id, limit=200)
         readings = readings_payload if isinstance(readings_payload, list) else readings_payload.get("readings", [])
 
         sim_status = self.client.get_simulation(simulation_id)

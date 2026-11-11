@@ -94,10 +94,16 @@ make run
 ```
 When `HYDRO_DATABASE_URL` is unset, `hydro` starts immediately on `:8080` using the thread-safe in-memory store and seeds the baseline Egyptian NFT lettuce farm (`Sensor X Cairo NFT Lettuce Twin (1x Baseline)`).
 
-### 2. Run with PostgreSQL via Docker Compose
+### 2. Run with Docker Compose (Backend + Database + ML Agent)
+Launch the complete digital twin stack including Go Core (`:8080`), PostgreSQL (`:5432`), and the Python ML Autonomous Agent:
+
 ```bash
-docker compose up --build
+docker compose up -d --build
 ```
+
+- Watch ML agent diagnostics in real time: `docker compose logs -f hydro-agent`
+- Access the Web Control Dashboard: [http://localhost:8080](http://localhost:8080)
+- Detailed startup and log viewing instructions: [`docs/ML docs/how to start.md`](docs/ML%20docs/how%20to%20start.md)
 
 ### 3. Try the 5-Act Competition Demo Flow via `curl`
 
@@ -150,6 +156,9 @@ Per [`docs/physics/LIMITATIONS.md`](docs/physics/LIMITATIONS.md) and [`docs/phys
 
 ## Documentation Index
 
+- [`docs/ML docs/how to start.md`](docs/ML%20docs/how%20to%20start.md) — Comprehensive Docker Compose startup and log monitoring guide
+- [`hydro_agent/README.md`](hydro_agent/README.md) — Python ML Diagnostic & Control Suite architecture, model registry, and tests
+- [`hydro_agent/ml_edits.md`](hydro_agent/ml_edits.md) — Complete release engineering log and REST flow endpoint matrix
 - [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) — MoSCoW requirements, actors, NFRs, and 5-Act acceptance demo script
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Package layout, concurrency design, 5 safety rules, and PostgreSQL schema
 - [`openapi.yaml`](openapi.yaml) — OpenAPI 3.1 REST & `/mcp` specification

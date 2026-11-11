@@ -633,7 +633,7 @@ function renderActivity() {
   const svg = el.barSvg;
   if (!svg || activeView !== 'farm-status') return;
   const { w, h } = sizeSvg(svg);
-  const cmds = (session.commands || []).filter((c) => c.status === 'accepted');
+  const cmds = (session.commands || []).filter((c) => c.status === 'accepted' || c.status === 'applied');
   const now = session.status?.sim_time_sec || 0;
   const is24 = selectedDosingTimeframe === '24h';
   const n = is24 ? 24 : session.seasonDays;
@@ -650,8 +650,17 @@ function renderActivity() {
     } else {
       i = Math.min(n - 1, Math.floor(t / 86400));
     }
-    bins[i].ml += (c.dose_stock_a_ml || 0) + (c.dose_stock_b_ml || 0) + (c.dose_acid_ml || 0) + (c.dose_base_ml || 0);
-    bins[i].l += c.refill_water_l || 0;
+
+    // Safely extract dosing quantities from either top-level or payload object
+    const p = c.payload || {};
+    const stockA = c.dose_stock_a_ml ?? p.dose_stock_a_ml ?? 0;
+    const stockB = c.dose_stock_b_ml ?? p.dose_stock_b_ml ?? 0;
+    const acid = c.dose_acid_ml ?? p.dose_acid_ml ?? 0;
+    const base = c.dose_base_ml ?? p.dose_base_ml ?? 0;
+    const refill = c.refill_water_l ?? p.refill_water_l ?? 0;
+
+    bins[i].ml += (stockA + stockB + acid + base);
+    bins[i].l += refill;
   }
 
   const totalMl = bins.reduce((s, b) => s + b.ml, 0);
@@ -697,24 +706,32 @@ function renderActivity() {
 
 // --- Safety ledger ---
 function describeCommand(c) {
+  const p = c.payload || {};
+  const stockA = c.dose_stock_a_ml ?? p.dose_stock_a_ml;
+  const stockB = c.dose_stock_b_ml ?? p.dose_stock_b_ml;
+  const acid = c.dose_acid_ml ?? p.dose_acid_ml;
+  const base = c.dose_base_ml ?? p.dose_base_ml;
+  const refill = c.refill_water_l ?? p.refill_water_l;
+  const throttle = c.throttle ?? p.throttle;
+
   const parts = [];
-  if (c.dose_stock_a_ml) parts.push(`A +${fmtNum(c.dose_stock_a_ml, 1)}`);
-  if (c.dose_stock_b_ml) parts.push(`B +${fmtNum(c.dose_stock_b_ml, 1)}`);
-  if (c.dose_acid_ml) parts.push(`HNO₃ +${fmtNum(c.dose_acid_ml, 1)}`);
-  if (c.dose_base_ml) parts.push(`KOH +${fmtNum(c.dose_base_ml, 1)}`);
+  if (stockA) parts.push(`A +${fmtNum(stockA, 1)}`);
+  if (stockB) parts.push(`B +${fmtNum(stockB, 1)}`);
+  if (acid) parts.push(`HNO₃ +${fmtNum(acid, 1)}`);
+  if (base) parts.push(`KOH +${fmtNum(base, 1)}`);
   switch (c.action) {
     case 'dose': return { verb: 'Dose', detail: `${parts.join(' · ')} mL` };
-    case 'refill_water': return { verb: 'Refill water', detail: `+${fmtNum(c.refill_water_l, 1)} L` };
-    case 'set_pump_throttle': return { verb: 'Set pump', detail: `${Math.round((c.throttle ?? 1) * 100)}%` };
-    case 'set_aerator_throttle': return { verb: 'Set aerator', detail: `${Math.round((c.throttle ?? 1) * 100)}%` };
-    case 'set_fan_throttle': return { verb: 'Set fans', detail: `${Math.round((c.throttle ?? 1) * 100)}%` };
+    case 'refill_water': return { verb: 'Refill water', detail: `+${fmtNum(refill, 1)} L` };
+    case 'set_pump_throttle': return { verb: 'Set pump', detail: `${Math.round((throttle ?? 1) * 100)}%` };
+    case 'set_aerator_throttle': return { verb: 'Set aerator', detail: `${Math.round((throttle ?? 1) * 100)}%` };
+    case 'set_fan_throttle': return { verb: 'Set fans', detail: `${Math.round((throttle ?? 1) * 100)}%` };
     default: return { verb: c.action || 'Command', detail: parts.join(' · ') };
   }
 }
 
 function renderLedger() {
   const cmds = session.commands || [];
-  const applied = cmds.filter((c) => c.status === 'accepted').length;
+  const applied = cmds.filter((c) => c.status === 'accepted' || c.status === 'applied').length;
   const blocked = cmds.length - applied;
   el.ledgerStats.textContent = `${applied} APPLIED · ${blocked} BLOCKED`;
 
@@ -738,7 +755,7 @@ function renderLedger() {
     .reverse()
     .slice(0, 40)
     .map((c) => {
-      const ok = c.status === 'accepted';
+      const ok = c.status === 'accepted' || c.status === 'applied';
       const { verb, detail } = describeCommand(c);
       const why = c.rejection_message || c.rejection_code || (ok ? 'Verified by PLC interlock' : 'Blocked');
       return `<tr>
@@ -755,7 +772,8 @@ function renderLedger() {
 function renderGullyMatrix() {
   const channels = session.spec?.channels || [];
   const doOut = session.readings.DO ?? session.gt?.c_do_ch_out_mg_l;
-  el.matrix.innerHTML = Array.from({ length: 12 }, (_, i) => {
+  const numGullies = Math.max(12, channels.length);
+  el.matrix.innerHTML = Array.from({ length: numGullies }, (_, i) => {
     const ch = channels[i];
     const ports = ch ? ch.plants_per_channel : 6;
     return `
@@ -777,13 +795,15 @@ function renderGullyMatrix() {
 function renderIsometricRack() {
   const faults = session.activeFaults || [];
   const doVal = session.readings.DO;
+  const channels = session.spec?.channels || [];
+  const gullyCount = Math.max(1, channels.length);
   const plane = (dy, label) => `
     <g transform="translate(0, ${dy})">
       <polygon points="200,200 480,100 640,170 360,270" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
       <line x1="240" y1="215" x2="520" y2="115" stroke="#F1F5F9" stroke-width="1"/>
       <line x1="280" y1="230" x2="560" y2="130" stroke="#F1F5F9" stroke-width="1"/>
       <line x1="320" y1="245" x2="600" y2="145" stroke="#F1F5F9" stroke-width="1"/>
-      ${[0, 1, 2, 3].map((k) => `<rect x="${276 + k * 60}" y="${176 - k * 20}" width="8" height="8" fill="#0D9488"/>`).join('')}
+      ${Array.from({ length: Math.min(8, gullyCount) }, (_, k) => `<rect x="${276 + k * (240 / Math.max(1, gullyCount))}" y="${176 - k * (80 / Math.max(1, gullyCount))}" width="8" height="8" fill="#0D9488"/>`).join('')}
       <text x="200" y="${222}" font-family="JetBrains Mono, monospace" font-size="10" fill="#64748B">${label}</text>
     </g>`;
   const pin = faults.length
@@ -796,7 +816,7 @@ function renderIsometricRack() {
   el.isoSvg.innerHTML = `
     <polygon points="120,380 400,240 680,380 400,430" fill="#F1F5F9"/>
     ${plane(-60, `GULLY B1 · OUTLET DO ${fmtNum(doVal, 1)} mg/L`)}
-    ${plane(0, 'GULLY A1 · NOMINAL')}
+    ${plane(0, `GULLY A1 · NOMINAL (${gullyCount} GULLIES ONLINE)`)}
     ${pin}`;
 }
 

@@ -159,9 +159,12 @@ class TwinClient:
 
     # --- Sensor Telemetry & Ground Truth ---
 
-    def get_readings(self, sim_id: str) -> Dict[str, Any]:
-        """Get noisy sensor observations from Module 11 observer layer (GET /api/v1/simulations/{sim_id}/readings)."""
-        return self._request("GET", f"/api/v1/simulations/{sim_id}/readings", auth=False)
+    def get_readings(self, sim_id: str, limit: int = 200) -> Dict[str, Any]:
+        """Get noisy sensor observations from Module 11 observer layer (GET /api/v1/simulations/{sim_id}/readings?limit=200)."""
+        path = f"/api/v1/simulations/{sim_id}/readings"
+        if limit:
+            path += f"?limit={limit}"
+        return self._request("GET", path, auth=False)
 
     def get_ground_truth(self, sim_id: str) -> Dict[str, Any]:
         """Export true conserved physical states for ML training (GET /api/v1/simulations/{sim_id}/ground-truth)."""

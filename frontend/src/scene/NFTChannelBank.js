@@ -6,21 +6,25 @@ export class NFTChannelBank {
     this.group.name = 'NFTChannelBank';
 
     const ch = spec?.channels ?? {};
-    this.channelCount = Math.max(3, ch.count ?? 4); // At least 3-4 parallel gullies per bench
-    this.channelLength = Math.max(1.6, ch.length ?? 1.8);
+    // Dynamically support any channel count specified in spec.channels.count or channels array
+    const rawCount = Array.isArray(ch) ? ch.length : (ch.count ?? 4);
+    this.channelCount = Math.max(1, rawCount);
+    this.channelLength = Math.max(1.0, ch.length ?? 1.8);
     this.channelWidth = ch.width ?? 0.12;
     this.channelDepth = 0.06;
     this.channelSlope = ch.slope ?? 0.02; // 2% tilt
-    this.plantsPerChannel = Math.max(6, ch.plants_per_channel ?? ch.plantsPerChannel ?? 7);
+    this.plantsPerChannel = Math.max(1, ch.plants_per_channel ?? ch.plantsPerChannel ?? 7);
 
-    this.channelSpacing = 0.18;
+    // Adjust channel spacing dynamically if channel count is large to prevent table overlap
+    this.channelSpacing = this.channelCount > 10 ? 0.14 : 0.18;
     this.tableHeight = 0.64;
 
     this.plantPortPositions = []; // World coords for planting ports
     this.waterMeshes = [];
 
-    // Commercial greenhouse layout: 3 parallel bays (Left Bay, Center Active Twin, Right Bay)
-    this.bayOffsets = [-1.30, 0.0, 1.30]; // X offsets for 3 multi-row growing tables
+    // Scale bay offsets dynamically so wider benches don't collide
+    const benchSpan = Math.max(0.6, (this.channelCount - 1) * this.channelSpacing + this.channelWidth + 0.30);
+    this.bayOffsets = [-benchSpan, 0.0, benchSpan]; // X offsets for 3 multi-row growing tables
 
     this._buildCommercialFacility();
   }

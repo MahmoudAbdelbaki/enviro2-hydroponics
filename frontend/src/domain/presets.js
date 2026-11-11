@@ -144,24 +144,63 @@ const r2 = (v) => Math.round(v * 1000) / 1000;
 export function buildFarmSpec(design) {
   const { maxL, surface } = tankGeometry(design);
   const c = design.channels;
+
+  // Dynamically calculate plant spacing if needed to satisfy s_pl * N_pl,ch <= L_ch
+  const plantsPerCh = Math.max(1, Math.round(c.plantsPerChannel));
+  const maxAllowedSpacing = c.length / plantsPerCh;
+  const spacingM = Math.min(c.spacing || 0.22, maxAllowedSpacing * 0.98);
+
   const channels = Array.from({ length: c.count }, (_, i) => ({
     id: channelId(i),
     length_m: r2(c.length),
     width_m: r2(c.width),
     slope: r2(c.slope),
-    plant_spacing_m: r2(c.spacing),
-    plants_per_channel: Math.round(c.plantsPerChannel),
+    plant_spacing_m: r2(spacingM),
+    plants_per_channel: plantsPerCh,
     initial_plant_age_days: c.ageDays,
   }));
 
+  // Ensure enclosure floor area is large enough to contain total channel footprint with margins
+  const totalChannelFootprint = c.count * c.length * c.width;
+  const minRequiredFloorArea = totalChannelFootprint * 1.6; // 60% aisle / service margin
+  const floorArea = Math.max(design.enclosure.floorArea || 0.96, minRequiredFloorArea);
+  const encHeight = design.enclosure.height || 3.0;
+
+  // Ensure pump rated flow provides sufficient flow per channel (> 0.05 L/min per channel)
+  const minRequiredPumpFlow = Math.max(1.0, c.count * 0.8); // ~0.8 L/min per channel nominal
+  const pumpFlowLMin = Math.max(design.pump.flowLMin || 3.0, minRequiredPumpFlow);
+
+  // Attach sensors dynamically: aqueous sensors attach to reservoir and channel(s)
   const attachTo = { reservoir: IDS.reservoir, channel: channelId(0), enclosure: IDS.enclosure };
-  const sensors = SENSOR_CATALOG.filter((s) => design.sensors.includes(s.kind)).map((s) => ({
-    id: s.id,
-    kind: s.kind,
-    attached_to_id: attachTo[s.attach],
-    accuracy: s.accuracy,
-    drift_per_day: 0,
-  }));
+  const sensors = [];
+
+  // Add standard catalogue sensors
+  for (const s of SENSOR_CATALOG) {
+    if (design.sensors.includes(s.kind)) {
+      sensors.push({
+        id: s.id,
+        kind: s.kind,
+        attached_to_id: attachTo[s.attach],
+        accuracy: s.accuracy,
+        drift_per_day: 0,
+      });
+    }
+  }
+
+  // If there are multiple channels, ensure channels beyond ch-1 have channel DO monitoring probes where applicable
+  for (let i = 1; i < c.count; i++) {
+    const chId = channelId(i);
+    // Attach a channel DO sensor if DO is in design sensors
+    if (design.sensors.includes('DO') && sensors.length < 32) {
+      sensors.push({
+        id: `sen-do-${i + 1}`,
+        kind: 'DO',
+        attached_to_id: chId,
+        accuracy: 0.08,
+        drift_per_day: 0,
+      });
+    }
+  }
 
   const chem = design.chemistry;
   return {
@@ -176,8 +215,8 @@ export function buildFarmSpec(design) {
     enclosure: {
       id: IDS.enclosure,
       type: design.enclosure.type,
-      floor_area_m2: r2(design.enclosure.floorArea),
-      air_volume_m3: r2(design.enclosure.floorArea * design.enclosure.height),
+      floor_area_m2: r2(floorArea),
+      air_volume_m3: r2(floorArea * encHeight),
       cover_transmittance: design.enclosure.coverTransmittance,
       vent_conductance_m_s: design.enclosure.vent,
     },
@@ -189,7 +228,7 @@ export function buildFarmSpec(design) {
       wall_conductance_w_m2_k: design.reservoir.wallU,
       placement: design.reservoir.placement,
     },
-    pump: { id: IDS.pump, rated_flow_l_min: design.pump.flowLMin, initial_health: 1.0 },
+    pump: { id: IDS.pump, rated_flow_l_min: r2(pumpFlowLMin), initial_health: 1.0 },
     aerator: { id: IDS.aerator, air_flow_l_min: design.aerator.airFlowLMin, otr_std_g_h: design.aerator.otrGH },
     fans: { id: IDS.fans, placement: design.fans.placement, airflow_m3_s: design.fans.airflow },
     channels,

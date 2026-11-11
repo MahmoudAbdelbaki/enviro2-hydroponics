@@ -209,12 +209,12 @@ class CropBiomassEngine:
 
     def compute_stress_modifier(self, root: RootZoneContext) -> float:
         """Synthesize multi-stress factor Phi_stress across root-zone states."""
-        # 1. Hypoxia stress (DO limitation)
+        # 1. Hypoxia stress (DO limitation with acute collapse when DO < 1.5 mg/L)
         c_do = max(0.0, root.channel_outlet_do_mg_l)
-        if c_do > 1.50:
-            phi_do = (c_do - 1.50) / (1.50 + (c_do - 1.50))
+        if c_do < 1.50:
+            phi_do = max(0.05, (c_do / 1.50) * 0.40)
         else:
-            phi_do = max(0.05, c_do / 3.0)
+            phi_do = min(1.0, 0.75 + 0.25 * min(1.0, (c_do - 1.50) / 5.50))
         phi_do = min(1.0, phi_do)
 
         # 2. pH stress (Gaussian bell centered at 6.0)

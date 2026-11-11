@@ -147,16 +147,18 @@ def resolve_simulation_id(client: TwinClient, preferred_farm_id: Optional[str] =
         logger.warning("Could not list farms: %s", e)
 
     if not farm_id:
-        farm_path = ROOT_DIR / "testdata" / "valid_farm.json"
-        if farm_path.exists():
+        exp2_path = ROOT_DIR / "testdata" / "real_datasets" / "hydrogrownet_egypt" / "exp2_farm.json"
+        valid_path = ROOT_DIR / "testdata" / "valid_farm.json"
+        target_path = exp2_path if exp2_path.exists() else valid_path
+        if target_path.exists():
             try:
-                with open(farm_path, "r", encoding="utf-8") as f:
+                with open(target_path, "r", encoding="utf-8") as f:
                     farm_spec = json.load(f)
                 created_farm = client.create_farm(farm_spec)
                 farm_id = created_farm.get("id")
-                logger.info("Created new benchmark farm %s from %s", farm_id, farm_path.name)
+                logger.info("Created new benchmark farm %s from %s", farm_id, target_path.name)
             except Exception as e:
-                logger.error("Failed to create farm from %s: %s", farm_path, e)
+                logger.error("Failed to create farm from %s: %s", target_path, e)
 
     if not farm_id:
         raise RuntimeError("Cannot start simulation: no valid farm found or created in database.")
@@ -176,6 +178,7 @@ def main():
     parser.add_argument("--key", default=os.getenv("HYDRO_ML_API_KEY", "sensor-x-dev-ml-key"), help="ML API Bearer key")
     parser.add_argument("--farm-id", default=os.getenv("HYDRO_FARM_ID", ""), help="Target Farm ID (optional)")
     parser.add_argument("--interval", type=float, default=5.0, help="Polling interval in seconds")
+    parser.add_argument("--advance", type=int, default=0, help="Advance simulation synchronously by N ticks (delta_t=300s) before each step")
     parser.add_argument("--single-step", action="store_true", help="Run a single evaluation step and exit")
     parser.add_argument("--demo", action="store_true", help="Run automated fault injection & control demo scenario")
     args = parser.parse_args()
@@ -213,13 +216,51 @@ def main():
                     except Exception:
                         pass
 
+                if args.advance > 0:
+                    try:
+                        client.advance(sim_id, steps=args.advance)
+                    except Exception as e:
+                        logger.warning("Could not advance simulation %s: %s", sim_id, e)
+
                 res = agent.run_polling_step(sim_id)
+                biometrics = res["virtual_sensing"]["model4"]["biomass_and_yield"]
+                transp = res["virtual_sensing"]["model4"]["transpiration"]
+                chem = res["virtual_sensing"]["model3"]["bulk_properties"]
+                m1_states = res["virtual_sensing"]["model1"]["enclosure_states"]
+                m2_states = res["virtual_sensing"]["model2"]["dissolved_oxygen"]
+                cmd = res["control"]["command"]
+
                 logger.info(
-                    "Step completed at sim_time=%.1fs | Status=%s | Faults=%s | Command=%s",
+                    "Step completed at sim_time=%.1fs (Day %.2f) | Status=%s | Faults=%s",
                     res["sim_time_sec"],
+                    res["sim_time_sec"] / 86400.0,
                     res["diagnostics"]["overall_system_status"],
                     res["diagnostics"]["active_diagnosed_faults"],
-                    res["control"]["command"]["reason"],
+                )
+                logger.info(
+                    "  [Biometrics] FreshWeight=%.1fg | LAI=%.2f | Transp=%.4f L/plant/d | Stress=%.2f",
+                    biometrics["shoot_fresh_weight_g_plant"],
+                    biometrics["effective_lai"],
+                    transp["daily_water_use_l_plant_day"],
+                    biometrics["stress_factor"],
+                )
+                logger.info(
+                    "  [Virtual Sensing] T_air=%.1f°C | VPD=%.2fkPa | DO_out=%.2fmg/L | EC25=%.2fdS/m | pH=%.2f | beta=%.3f",
+                    m1_states["t_air_c"],
+                    m1_states["vpd_kpa"],
+                    m2_states["channel_outlet_do_mg_l"],
+                    chem["ec25_ds_m"],
+                    chem["ph"],
+                    chem["buffer_capacity_meq_l_ph"],
+                )
+                logger.info(
+                    "  [Actuation] Target=%s | Refill=%.2fL | StockA=%.1fmL | StockB=%.1fmL | Acid=%.1fmL | Action=%s",
+                    cmd["target_component_id"],
+                    cmd["refill_water_l"],
+                    cmd["dose_stock_a_ml"],
+                    cmd["dose_stock_b_ml"],
+                    cmd["dose_acid_ml"],
+                    cmd["reason"][:60] + "...",
                 )
             except Exception as e:
                 logger.error("Error during agent control loop step: %s", e)

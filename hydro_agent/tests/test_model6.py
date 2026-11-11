@@ -67,6 +67,27 @@ class TestModel6Controller(unittest.TestCase):
         self.assertEqual(cmd.dose_stock_b_ml, 0.0)
         self.assertEqual(cmd.dose_acid_ml, 0.0)
         self.assertIn("mixing cooldown", cmd.reason)
+        # Verify audit tracking
+        self.assertIsNotNone(cmd.audit)
+        self.assertTrue(cmd.audit.suppressed)
+        self.assertEqual(cmd.audit.interlock_triggered, "INTERLOCK_4_MIXING_COOLDOWN")
+        self.assertGreater(cmd.audit.raw_dose_stock_a_ml, 0.0)
+        self.assertGreater(cmd.audit.remaining_cooldown_sec, 0.0)
+
+    def test_interlock_dry_pump_lockout(self):
+        """Rule 2: Dosing must be suppressed if reservoir volume is at or below dry pump threshold."""
+        inputs = Model6Input(
+            simulation_id="sim-test-dry",
+            sim_time_sec=86400.0,
+            current_telemetry=CurrentTelemetry(v_res_l=12.0, ec25_ds_m=1.70, ph=6.4, water_temp_c=22.0),
+            chemical_context=ChemicalContext(last_chemical_dose_sec=0.0),
+        )
+        cmd = self.controller.compute_action(inputs)
+        self.assertEqual(cmd.dose_stock_a_ml, 0.0)
+        self.assertEqual(cmd.dose_acid_ml, 0.0)
+        self.assertIsNotNone(cmd.audit)
+        self.assertTrue(cmd.audit.suppressed)
+        self.assertEqual(cmd.audit.interlock_triggered, "INTERLOCK_2_DRY_PUMP_LOCKOUT")
 
     def test_interlock_tank_overflow_cap(self):
         """Rule 3: Refill volume must be clamped so total never exceeds 120.0 L."""

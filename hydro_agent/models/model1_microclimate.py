@@ -204,13 +204,19 @@ class MicroclimateThermalEngine:
         return float(t_ch_out), float(t_ch_mean)
 
     # --------------------------------------------------------------------------
-    # Time Stepping Integration
+    # Time Stepping Integration (Runge-Kutta 4th-Order)
     # --------------------------------------------------------------------------
 
-    def step(self, inputs: Model1Input) -> Model1Output:
-        """Advance enclosure microclimate by delta_t seconds using forward dynamics."""
+    def derivatives(
+        self,
+        t_air: float,
+        chi_vap: float,
+        chi_co2: float,
+        t_res: float,
+        inputs: Model1Input,
+    ) -> Tuple[float, float, float, float, float, float]:
+        """Compute time derivatives for the 4 coupled microclimate ODEs."""
         p = self.params
-        dt = inputs.delta_t_sec
         weather = inputs.outdoor_weather
         fac = inputs.facility_parameters
         coupled = inputs.coupled_states
@@ -221,49 +227,89 @@ class MicroclimateThermalEngine:
 
         # 1. Gully Thermal NTU Solve
         t_ch_out, t_ch_mean = self.solve_channel_temperature(
-            t_air_c=self.t_air,
-            t_res_c=self.t_res,
+            t_air_c=t_air,
+            t_res_c=t_res,
             solar_canopy_w_m2=solar_canopy,
             lai=coupled.lai,
             pump_flow_m3_s=coupled.pump_flow_rate_m3_s,
             channel_area_m2=coupled.channel_total_area_m2,
         )
 
-        # 2. Air Sensible Heat Balance
+        # 2. Air Sensible Heat Balance (dT_air/dt)
         q_rad_air = 0.15 * solar_canopy
         h_can_air = coupled.canopy_sensible_heat_w_m2
-        h_ch_air = (coupled.channel_total_area_m2 / fac.floor_area_m2) * p.u_ch_top * (t_ch_mean - self.t_air)
-        q_vent_sens = p.rho_a * p.cp_a * phi_vent * (self.t_air - weather.air_temperature_c)
-        q_cov_cond = fac.cover_heat_transfer_coeff_w_m2_k * (self.t_air - weather.air_temperature_c)
-
+        h_ch_air = (coupled.channel_total_area_m2 / fac.floor_area_m2) * p.u_ch_top * (t_ch_mean - t_air)
+        q_vent_sens = p.rho_a * p.cp_a * phi_vent * (t_air - weather.air_temperature_c)
+        q_cov_cond = fac.cover_heat_transfer_coeff_w_m2_k * (t_air - weather.air_temperature_c)
         dt_air_dt = (q_rad_air + h_can_air + h_ch_air - q_vent_sens - q_cov_cond) / (p.rho_a * p.cp_a * h_enc)
 
-        # 3. Water Vapor Balance
+        # 3. Water Vapor Balance (dchi_vap/dt)
         chi_vap_out = self.sat_vapor_density(weather.air_temperature_c) * (weather.relative_humidity_pct / 100.0)
-        phi_vent_vap = phi_vent * (self.chi_vap - chi_vap_out)
+        phi_vent_vap = phi_vent * (chi_vap - chi_vap_out)
         e_can = coupled.canopy_transpiration_kg_m2_s
+        # Cover condensation: if vapor exceeds saturation at cover temperature (approx ambient)
+        chi_sat_cov = self.sat_vapor_density(weather.air_temperature_c)
+        q_cond_cov = p.k_cond_cov * max(0.0, chi_vap - chi_sat_cov)
+        dchi_vap_dt = (e_can - phi_vent_vap - q_cond_cov) / h_enc
 
-        dchi_vap_dt = (e_can - phi_vent_vap) / h_enc
-
-        # 4. CO2 Balance
+        # 4. CO2 Balance (dchi_co2/dt)
         chi_co2_out = 420.0 * p.co2_ppm_to_kg_m3
-        phi_vent_co2 = phi_vent * (self.chi_co2 - chi_co2_out)
+        phi_vent_co2 = phi_vent * (chi_co2 - chi_co2_out)
         dchi_co2_dt = (coupled.co2_injection_kg_m2_s - coupled.net_co2_uptake_kg_m2_s - phi_vent_co2) / h_enc
 
-        # 5. Reservoir Thermal Balance
+        # 5. Reservoir Thermal Balance (dT_res/dt)
         v_res_m3 = max(0.01, coupled.reservoir_volume_l / 1000.0)
-        q_advect = p.rho_w * p.cp_w * coupled.pump_flow_rate_m3_s * (t_ch_out - self.t_res)
-        q_wall = p.u_res_wall * 1.5 * (self.t_air - self.t_res)
-        dt_res_dt = (q_advect + q_wall) / (p.rho_w * p.cp_w * v_res_m3)
+        q_advect = p.rho_w * p.cp_w * coupled.pump_flow_rate_m3_s * (t_ch_out - t_res)
+        q_wall = p.u_res_wall * 1.5 * (t_air - t_res)
+        # Pump motor heat dissipation (~15W when pump running)
+        q_pump_motor = 15.0 if coupled.pump_flow_rate_m3_s > 1e-6 else 0.0
+        dt_res_dt = (q_advect + q_wall + q_pump_motor) / (p.rho_w * p.cp_w * v_res_m3)
 
-        # Forward integration
-        self.t_air = float(self.t_air + dt * dt_air_dt)
-        self.chi_vap = float(max(1e-4, self.chi_vap + dt * dchi_vap_dt))
-        self.chi_co2 = float(max(1e-5, self.chi_co2 + dt * dchi_co2_dt))
-        self.t_res = float(self.t_res + dt * dt_res_dt)
+        return dt_air_dt, dchi_vap_dt, dchi_co2_dt, dt_res_dt, t_ch_out, t_ch_mean
+
+    def step_rk4(self, inputs: Model1Input) -> Model1Output:
+        """Advance enclosure microclimate by delta_t seconds using 4th-Order Runge-Kutta."""
+        dt = inputs.delta_t_sec
+        y1_0, y2_0, y3_0, y4_0 = self.t_air, self.chi_vap, self.chi_co2, self.t_res
+
+        # k1
+        k1_1, k1_2, k1_3, k1_4, t_ch_out, t_ch_mean = self.derivatives(y1_0, y2_0, y3_0, y4_0, inputs)
+
+        # k2
+        k2_1, k2_2, k2_3, k2_4, _, _ = self.derivatives(
+            y1_0 + 0.5 * dt * k1_1,
+            y2_0 + 0.5 * dt * k1_2,
+            y3_0 + 0.5 * dt * k1_3,
+            y4_0 + 0.5 * dt * k1_4,
+            inputs,
+        )
+
+        # k3
+        k3_1, k3_2, k3_3, k3_4, _, _ = self.derivatives(
+            y1_0 + 0.5 * dt * k2_1,
+            y2_0 + 0.5 * dt * k2_2,
+            y3_0 + 0.5 * dt * k2_3,
+            y4_0 + 0.5 * dt * k2_4,
+            inputs,
+        )
+
+        # k4
+        k4_1, k4_2, k4_3, k4_4, _, _ = self.derivatives(
+            y1_0 + dt * k3_1,
+            y2_0 + dt * k3_2,
+            y3_0 + dt * k3_3,
+            y4_0 + dt * k3_4,
+            inputs,
+        )
+
+        # RK4 weighted average
+        self.t_air = float(y1_0 + (dt / 6.0) * (k1_1 + 2.0 * k2_1 + 2.0 * k3_1 + k4_1))
+        self.chi_vap = float(max(1e-4, y2_0 + (dt / 6.0) * (k1_2 + 2.0 * k2_2 + 2.0 * k3_2 + k4_2)))
+        self.chi_co2 = float(max(1e-5, y3_0 + (dt / 6.0) * (k1_3 + 2.0 * k2_3 + 2.0 * k3_3 + k4_3)))
+        self.t_res = float(y4_0 + (dt / 6.0) * (k1_4 + 2.0 * k2_4 + 2.0 * k3_4 + k4_4))
 
         rh_pct, vpd_kpa = self.compute_vpd_kpa(self.t_air, self.chi_vap)
-        co2_ppm = self.chi_co2 / p.co2_ppm_to_kg_m3
+        co2_ppm = self.chi_co2 / self.params.co2_ppm_to_kg_m3
 
         return Model1Output(
             sim_time_sec=inputs.sim_time_sec + dt,
@@ -280,3 +326,7 @@ class MicroclimateThermalEngine:
                 t_ch_mean_c=round(t_ch_mean, 2),
             ),
         )
+
+    def step(self, inputs: Model1Input) -> Model1Output:
+        """Advance enclosure microclimate by delta_t seconds (delegates to step_rk4)."""
+        return self.step_rk4(inputs)
