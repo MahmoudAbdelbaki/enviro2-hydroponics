@@ -1,7 +1,7 @@
 import { createApi } from '../src/api/client.js';
 import { PRESETS, getPreset } from '../src/domain/presets.js';
 
-const api = createApi({ baseUrl: 'http://localhost:8080', mlKey: 'dev-ml-secret-key' });
+const api = createApi({ baseUrl: process.env.HYDRO_API_URL || 'http://127.0.0.1:8080', mlKey: process.env.HYDRO_ML_API_KEY || 'sensor-x-dev-ml-key' });
 
 async function testSingleSim() {
   const preset = getPreset('exp2');
