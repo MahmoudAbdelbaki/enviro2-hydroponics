@@ -72,6 +72,23 @@ class Model6Input:
 
 
 @dataclass
+class ActuationDecisionAudit:
+    """Audit metadata tracking raw decisions, local clamp/suppression, and interlocks."""
+    raw_refill_l: float
+    raw_dose_stock_a_ml: float
+    raw_dose_stock_b_ml: float
+    raw_dose_acid_ml: float
+    suppressed: bool = False
+    clamped: bool = False
+    hold_reason: str = ""
+    interlock_triggered: Optional[str] = None
+    remaining_cooldown_sec: float = 0.0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class ActuationCommand:
     """Validated fertigation actuation command matching POST /commands schema."""
     target_component_id: str
@@ -81,13 +98,18 @@ class ActuationCommand:
     dose_stock_b_ml: float
     dose_acid_ml: float
     reason: str
+    audit: Optional[ActuationDecisionAudit] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ActuationCommand":
-        return cls(**data)
+        audit_data = data.pop("audit", None)
+        audit_obj = ActuationDecisionAudit(**audit_data) if audit_data else None
+        return cls(audit=audit_obj, **data)
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        d = asdict(self)
+        # Note: 'audit' is metadata for hydro_agent, strip or keep appropriately
+        return d
 
 
 class FertigationSafetyController:
@@ -142,7 +164,18 @@ class FertigationSafetyController:
         # 2. Evaluation of the 5 Zero-Bypass PLC Safety Interlocks
         # ----------------------------------------------------------------------
 
+        # Preserve raw unconstrained deficit values for auditing
+        raw_refill_init = raw_refill
+        raw_stock_a_init = dose_stock_a_ml
+        raw_stock_b_init = dose_stock_b_ml
+        raw_acid_init = dose_acid_ml
+
         reasons = []
+        interlock_triggered = None
+        hold_reason = ""
+        suppressed = False
+        clamped = False
+        remaining_cooldown = max(0.0, self.min_cooldown_sec - (sim_time - chem.last_chemical_dose_sec))
 
         # Interlock 1: Finite Bounds Check
         if any(math.isnan(x) or math.isinf(x) for x in [raw_refill, dose_stock_a_ml, dose_stock_b_ml, dose_acid_ml]):
@@ -150,7 +183,10 @@ class FertigationSafetyController:
             dose_stock_a_ml = 0.0
             dose_stock_b_ml = 0.0
             dose_acid_ml = 0.0
-            reasons.append("Non-finite numbers suppressed")
+            suppressed = True
+            interlock_triggered = "INTERLOCK_1_FINITE_BOUNDS"
+            hold_reason = "Non-finite numbers suppressed"
+            reasons.append(hold_reason)
 
         raw_refill = max(0.0, raw_refill)
         dose_stock_a_ml = max(0.0, dose_stock_a_ml)
@@ -159,6 +195,10 @@ class FertigationSafetyController:
 
         # Interlock 2: Dry Pump Lockout
         if telem.v_res_l <= self.dry_pump_lockout_l:
+            if dose_stock_a_ml > 0 or dose_acid_ml > 0:
+                suppressed = True
+                interlock_triggered = "INTERLOCK_2_DRY_PUMP_LOCKOUT"
+                hold_reason = f"Dry pump lockout active (V_res {telem.v_res_l:.1f}L <= {self.dry_pump_lockout_l:.1f}L)"
             dose_stock_a_ml = 0.0
             dose_stock_b_ml = 0.0
             dose_acid_ml = 0.0
@@ -169,11 +209,18 @@ class FertigationSafetyController:
         max_allowable_refill = max(0.0, self.v_tank_max_l - telem.v_res_l - chemical_vol_l)
         refill_water_l = min(raw_refill, max_allowable_refill)
         if refill_water_l < raw_refill:
+            clamped = True
+            if not interlock_triggered:
+                interlock_triggered = "INTERLOCK_3_TANK_OVERFLOW_CAP"
+                hold_reason = f"Refill clamped from {raw_refill:.2f}L to {refill_water_l:.2f}L to prevent tank overflow ({self.v_tank_max_l:.1f}L cap)"
             reasons.append(f"Refill clamped to {refill_water_l:.1f}L to prevent tank overflow ({self.v_tank_max_l}L cap)")
 
         # Interlock 4: Mixing Turnover Cooldown (7200s / 2 hours)
         time_since_last_dose = sim_time - chem.last_chemical_dose_sec
         if time_since_last_dose < self.min_cooldown_sec and (dose_stock_a_ml > 0 or dose_acid_ml > 0):
+            suppressed = True
+            interlock_triggered = "INTERLOCK_4_MIXING_COOLDOWN"
+            hold_reason = f"Mixing cooldown active ({remaining_cooldown:.0f}s left < {self.min_cooldown_sec:.0f}s)"
             dose_stock_a_ml = 0.0
             dose_stock_b_ml = 0.0
             dose_acid_ml = 0.0
@@ -182,16 +229,32 @@ class FertigationSafetyController:
         # Interlock 5: Chemical Shock & Speciation Envelope Caps
         # Cap single EC jump to <= 0.40 dS/m
         max_stock_pulse_ml = telem.v_res_l * (0.40 / max(1.0, chem.stock_ec_ds_m)) * 1000.0 * 0.5
-        dose_stock_a_ml = min(dose_stock_a_ml, max_stock_pulse_ml, 25.0)
+        dose_stock_a_capped = min(dose_stock_a_ml, max_stock_pulse_ml, 25.0)
+        if dose_stock_a_capped < dose_stock_a_ml:
+            clamped = True
+            if not interlock_triggered:
+                interlock_triggered = "INTERLOCK_5_CHEMICAL_SHOCK_CAP"
+                hold_reason = f"Stock dosing scaled down from {dose_stock_a_ml:.2f}mL to {dose_stock_a_capped:.2f}mL to respect EC shock cap"
+        dose_stock_a_ml = dose_stock_a_capped
         dose_stock_b_ml = dose_stock_a_ml  # 1:1 balance lock
 
         # Cap single alkalinity shift to <= 0.50 meq/L
         max_acid_pulse_ml = (telem.v_res_l * 0.50 / max(0.1, chem.acid_normality_n))
-        dose_acid_ml = min(dose_acid_ml, max_acid_pulse_ml, 15.0)
+        dose_acid_capped = min(dose_acid_ml, max_acid_pulse_ml, 15.0)
+        if dose_acid_capped < dose_acid_ml:
+            clamped = True
+            if not interlock_triggered:
+                interlock_triggered = "INTERLOCK_5_CHEMICAL_SHOCK_CAP"
+                hold_reason = f"Acid dosing scaled down from {dose_acid_ml:.2f}mL to {dose_acid_capped:.2f}mL to respect alkalinity shock cap"
+        dose_acid_ml = dose_acid_capped
 
         # Pre-dose speciation envelope checks: simulated post-mix pH in [4.5, 7.8], EC25 <= 4.0 dS/m
         predicted_ec_jump = (2.0 * dose_stock_a_ml * chem.stock_ec_ds_m / 1000.0) / max(10.0, telem.v_res_l)
         if (telem.ec25_ds_m + predicted_ec_jump) > 4.0:
+            if dose_stock_a_ml > 0:
+                suppressed = True
+                interlock_triggered = "INTERLOCK_5_SPECIATION_ENVELOPE"
+                hold_reason = "Stock dosing suppressed to protect EC upper envelope (<= 4.0 dS/m)"
             dose_stock_a_ml = 0.0
             dose_stock_b_ml = 0.0
             reasons.append("Stock dosing clamped to protect EC upper envelope (<= 4.0 dS/m)")
@@ -204,6 +267,23 @@ class FertigationSafetyController:
 
         reason_str = "; ".join(reasons)
 
+        # Build audit record
+        had_raw_deficits = (raw_refill_init > 0.0 or raw_stock_a_init > 0.0 or raw_acid_init > 0.0)
+        final_has_action = (refill_water_l > 0.0 or dose_stock_a_ml > 0.0 or dose_acid_ml > 0.0)
+        is_fully_suppressed = had_raw_deficits and not final_has_action
+
+        audit_record = ActuationDecisionAudit(
+            raw_refill_l=round(raw_refill_init, 2),
+            raw_dose_stock_a_ml=round(raw_stock_a_init, 2),
+            raw_dose_stock_b_ml=round(raw_stock_b_init, 2),
+            raw_dose_acid_ml=round(raw_acid_init, 2),
+            suppressed=suppressed or is_fully_suppressed,
+            clamped=clamped,
+            hold_reason=hold_reason,
+            interlock_triggered=interlock_triggered,
+            remaining_cooldown_sec=round(remaining_cooldown, 1),
+        )
+
         return ActuationCommand(
             target_component_id=target_res,
             action="dose",
@@ -212,4 +292,5 @@ class FertigationSafetyController:
             dose_stock_b_ml=round(dose_stock_b_ml, 2),
             dose_acid_ml=round(dose_acid_ml, 2),
             reason=reason_str,
+            audit=audit_record,
         )

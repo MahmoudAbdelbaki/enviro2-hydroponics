@@ -91,6 +91,7 @@ class HydroAutonomousAgent:
         # Operational state memory
         self.last_chemical_dose_sec: float = 0.0
         self.last_command: Optional[ActuationCommand] = None
+        self.hold_alert_latch: Dict[str, float] = {}
 
     def process_telemetry_batch(
         self,
@@ -264,9 +265,46 @@ class HydroAutonomousAgent:
             or m6_command.dose_stock_a_ml > 0.0
             or m6_command.dose_acid_ml > 0.0
         )
+
+        # Audit check: Handle suppressed / held decisions and alert the frontend audit trail
+        decision_audit = m6_command.audit
+        if decision_audit and decision_audit.suppressed:
+            # Check rate limiting / deduplication (only once per hold event or every 1800s)
+            hold_key = decision_audit.interlock_triggered or "GENERIC_HOLD"
+            last_hold_time = self.hold_alert_latch.get(hold_key, -1e9)
+            if (sim_time_sec - last_hold_time) >= 1800.0:
+                self.hold_alert_latch[hold_key] = sim_time_sec
+                suppressed_msg = (
+                    f"Model 6 formulated dose (Refill: {decision_audit.raw_refill_l:.1f}L, "
+                    f"Stock: +{decision_audit.raw_dose_stock_a_ml:.1f}mL, "
+                    f"Acid: +{decision_audit.raw_dose_acid_ml:.1f}mL), but action was HELD by "
+                    f"{decision_audit.interlock_triggered}: {decision_audit.hold_reason}."
+                )
+                try:
+                    hold_alert_payload = {
+                        "component_id": target_res_id,
+                        "severity": "info",
+                        "code": "DOSING_HOLD_INTERLOCK",
+                        "message": suppressed_msg,
+                    }
+                    self.client.post_alert(simulation_id, hold_alert_payload)
+                    logger.info("Dispatched Informational Audit Alert [DOSING_HOLD_INTERLOCK]: %s", suppressed_msg)
+                except Exception as e:
+                    logger.error("Failed to dispatch dosing hold alert to Go backend: %s", e)
+
+        # Dispatch safe command to Go backend if action remains
         if has_action:
+            cmd_payload = {
+                "target_component_id": m6_command.target_component_id,
+                "action": m6_command.action,
+                "refill_water_l": m6_command.refill_water_l,
+                "dose_stock_a_ml": m6_command.dose_stock_a_ml,
+                "dose_stock_b_ml": m6_command.dose_stock_b_ml,
+                "dose_acid_ml": m6_command.dose_acid_ml,
+                "reason": m6_command.reason,
+            }
             try:
-                command_audit = self.client.send_command(simulation_id, m6_command.to_dict())
+                command_audit = self.client.send_command(simulation_id, cmd_payload)
                 if m6_command.dose_stock_a_ml > 0.0 or m6_command.dose_acid_ml > 0.0:
                     self.last_chemical_dose_sec = sim_time_sec
                 self.last_command = m6_command

@@ -85,6 +85,31 @@ class TestHydroAutonomousAgent(unittest.TestCase):
         self.assertEqual(alert["code"], "IMPLIED_PUMP_OR_AERATION_FAULT")
         self.assertEqual(alert["component_id"], "pump-1")
 
+    def test_dosing_hold_dispatches_info_audit_alert(self):
+        """Verify that when dosing is suppressed by an interlock, a DOSING_HOLD_INTERLOCK info alert is dispatched."""
+        # Set agent in cooldown state
+        self.agent.last_chemical_dose_sec = 86000.0  # 400s ago (< 7200s cooldown)
+        raw_telemetry = [
+            {"sensor_id": "sen-vres-1", "kind": "V_res", "value": 100.0, "unit": "L"},
+            {"sensor_id": "sen-ec-1", "kind": "EC", "value": 1.5, "unit": "dS/m"},  # Needs stock fertilizer!
+            {"sensor_id": "sen-ph-1", "kind": "pH", "value": 6.5, "unit": "pH"},   # Needs acid!
+            {"sensor_id": "sen-do-1", "kind": "DO", "value": 8.0, "unit": "mg/L"},
+        ]
+
+        self.agent.process_telemetry_batch(
+            raw_readings=raw_telemetry,
+            sim_time_sec=86400.0,
+            simulation_id="sim-integration-hold",
+        )
+
+        # Confirm DOSING_HOLD_INTERLOCK was dispatched as severity 'info'
+        hold_alerts = [a for _, a in self.mock_client.dispatched_alerts if a["code"] == "DOSING_HOLD_INTERLOCK"]
+        self.assertEqual(len(hold_alerts), 1)
+        alert = hold_alerts[0]
+        self.assertEqual(alert["severity"], "info")
+        self.assertIn("INTERLOCK_4_MIXING_COOLDOWN", alert["message"])
+        self.assertIn("res-1", alert["component_id"])
+
 
 if __name__ == "__main__":
     unittest.main()
