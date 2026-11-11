@@ -182,3 +182,4 @@ class TelemetryIngestionGuard:
             return 1.0
         mean = sum(vals) / n
         return sum((x - mean) ** 2 for x in vals) / (n - 1)
+

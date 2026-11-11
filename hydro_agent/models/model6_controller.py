@@ -159,6 +159,9 @@ class FertigationSafetyController:
 
         # Interlock 2: Dry Pump Lockout
         if telem.v_res_l <= self.dry_pump_lockout_l:
+            dose_stock_a_ml = 0.0
+            dose_stock_b_ml = 0.0
+            dose_acid_ml = 0.0
             reasons.append(f"Critical low water level ({telem.v_res_l:.1f}L <= {self.dry_pump_lockout_l:.1f}L dry pump lockout)")
 
         # Interlock 3: Tank Overflow Cap (V_res + Delta_V_src + sum(Delta_V_chem) <= 120.0 L)
