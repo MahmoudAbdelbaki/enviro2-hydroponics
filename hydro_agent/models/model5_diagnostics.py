@@ -186,7 +186,10 @@ class FaultResidualAnomalyDetector:
 
     def evaluate(self, inputs: Model5Input) -> Model5HealthMatrix:
         """Evaluate physics residuals and diagnose root-cause faults."""
-        sensor_map = {pt.kind: pt for pt in inputs.observed_telemetry}
+        sensor_map = {}
+        for pt in inputs.observed_telemetry:
+            if pt.kind not in sensor_map:
+                sensor_map[pt.kind] = pt
         self._update_histories(inputs.sim_time_sec, sensor_map)
 
         faults: List[str] = []
@@ -203,9 +206,11 @@ class FaultResidualAnomalyDetector:
             residual_do = do_obs - do_ch_exp
 
             if residual_do < -0.32:
-                # Disambiguation: Check reservoir DO state
-                if do_res_exp >= 7.5:
-                    # Spatial decoupling: channel DO collapses while reservoir is saturated
+                # Disambiguation:
+                # 1. Spatial decoupling: channel DO collapses while reservoir DO stays high (large drop across channel) -> pump fault
+                # 2. Parallel drop: both reservoir and channel DO collapse together or channel DO drops below hypoxic limit (< 4.0 mg/L) without large channel drop -> aeration compressor loss
+                channel_drop = do_res_exp - do_obs
+                if channel_drop >= 1.5 or (residual_do < -1.5 and do_res_exp >= 6.0):
                     fault_code = "IMPLIED_PUMP_OR_AERATION_FAULT"
                     faults.append(fault_code)
                     sensor_health[sensor_map["DO"].sensor_id] = "DEGRADED"
@@ -217,24 +222,25 @@ class FaultResidualAnomalyDetector:
                                 code=fault_code,
                                 message=(
                                     f"Outlet DO dropped to {do_obs:.2f} mg/L (expected {do_ch_exp:.2f} mg/L) "
-                                    f"while reservoir DO remains saturated at {do_res_exp:.2f} mg/L. "
+                                    f"with large longitudinal drop ({channel_drop:.2f} mg/L) from reservoir ({do_res_exp:.2f} mg/L). "
                                     "Pump degradation or root obstruction diagnosed."
                                 ),
                             )
                         )
-                elif do_obs < 4.0 and do_res_exp < 4.0:
-                    # Parallel drop: both collapsed -> aerator compressor failure
+                elif do_obs < 4.0 or residual_do < -0.5:
                     fault_code = "AERATION_LOSS_SUSPECTED"
                     faults.append(fault_code)
+                    target_aer = "aer-1" if "aer-1" in inputs.actuator_context.target_reservoir_id else getattr(inputs.actuator_context, "target_aerator_id", "aer-1")
                     if self._should_dispatch_alert(fault_code, inputs.sim_time_sec):
                         alerts.append(
                             DiagnosticAlert(
-                                component_id="aer-1",
+                                component_id=target_aer,
                                 severity="critical",
                                 code=fault_code,
                                 message=(
-                                    f"Both channel DO ({do_obs:.2f} mg/L) and reservoir DO ({do_res_exp:.2f} mg/L) "
-                                    "collapsed below hypoxic limits. Aeration compressor or diffuser clog diagnosed."
+                                    f"System DO ({do_obs:.2f} mg/L) collapsed below expected ({do_ch_exp:.2f} mg/L) "
+                                    f"without spatial decoupling from reservoir ({do_res_exp:.2f} mg/L). "
+                                    "Aeration compressor or diffuser clog diagnosed."
                                 ),
                             )
                         )

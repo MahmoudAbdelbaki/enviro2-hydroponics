@@ -129,7 +129,11 @@ class HydroAutonomousAgent:
             )
             for cp in cleaned_points
         ]
-        sensor_map = {pt.kind: pt.value for pt in telemetry_points}
+        # Keep the latest reading for each sensor kind
+        sensor_map = {}
+        for pt in telemetry_points:
+            if pt.kind not in sensor_map:
+                sensor_map[pt.kind] = pt.value
         target_res_id = self.ingestion_guard.resolved_reservoir_id
 
         v_res = sensor_map.get("V_res", 88.5)

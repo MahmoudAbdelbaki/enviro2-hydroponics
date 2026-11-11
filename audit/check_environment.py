@@ -182,3 +182,4 @@ def run_environment_audit(base_url: str = "http://localhost:8080") -> Dict[str, 
 if __name__ == "__main__":
     report = run_environment_audit()
     print(json.dumps(report, indent=2))
+

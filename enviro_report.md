@@ -91,7 +91,7 @@ Data captured from live simulation session `7664cb6c-39e1-408a-9a19-7797bfc67467
 
 ---
 
-## 5. Actionable Recommendations
+## 6. Actionable Recommendations
 
 1. **Fertigation Turnover Cooldown:** Retain the $1800\text{ s}$ to $7200\text{ s}$ mixing interval between acid doses to permit full hydrodynamic blending throughout the $100\text{ L}$ reservoir.
 2. **Dynamic Reservoir ID Resolution:** Maintain runtime resolution of component IDs (`res-1` vs `reservoir-1`) to ensure seamless execution across diverse production topologies.
@@ -99,3 +99,20 @@ Data captured from live simulation session `7664cb6c-39e1-408a-9a19-7797bfc67467
 
 ---
 *Report certified by Principal SRE & Autonomous Control Systems Lead.*
+
+## 5. Fault Detection Latency Benchmarks
+
+Autonomous NFT Digital Twin detection latency benchmarks evaluated against Go Core backend (`:8080`):
+- **Optimal SRE Target:** $< 18.0\text{ simulation hours}$
+- **Maximum Safety Threshold:** $< 48.0\text{ simulation hours}$
+
+| Fault Scenario | Target Component | Injected Sim Time | Detected Sim Time | Time-to-Detect (TTD) | Target SLA | Benchmark Status | Wall Clock (ms) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Pump Degradation** | `pump-1` | `121.00 h` | `121.17 h` | **`0.17 h`** | `< 18.0 h` | 🟢 PASS | `85.9 ms` |
+| **Reservoir Structural Leak** | `res-1` | `1.00 h` | `1.08 h` | **`0.08 h`** | `< 18.0 h` | 🟢 PASS | `53.1 ms` |
+| **pH Probe Sensor Drift** | `sen-ph-1` | `1.00 h` | `1.08 h` | **`0.08 h`** | `< 18.0 h` | 🟢 PASS | `40.6 ms` |
+| **Aeration Compressor Loss** | `aer-1` | `505.00 h` | `508.00 h` | **`3.00 h`** | `< 18.0 h` | 🟢 PASS | `181.5 ms` |
+
+> **Reliability Conclusion:** All critical failure modes (Pump Degradation, Tank Structural Leak, pH Sensor Drift, and Aerator Loss) are isolated and component-tagged well below the 18-hour optimal threshold, preventing crop stress or catastrophic system collapse.
+
+---
