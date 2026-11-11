@@ -15,17 +15,19 @@ hydro_agent/
 ├── README.md                   # Architecture, model registry, and execution guide
 ├── client/
 │   ├── __init__.py
+│   ├── ingestion.py            # Telemetry Ingestion Guard (Forward-fill, stall detection, dynamic ID)
 │   └── twin_client.py          # Go Core REST API client (:8080) with ML bearer auth
 ├── models/
 │   ├── __init__.py             # Unified exports for all 6 models and dataclass schemas
-│   ├── model1_microclimate.py  # Enclosure microclimate thermal-vapor engine & NTU gully heat exchanger
+│   ├── model1_microclimate.py  # Enclosure microclimate thermal-vapor engine & NTU gully heat exchanger (RK4)
 │   ├── model2_oxygen.py        # Dissolved oxygen & channel hydraulics soft-sensor (Benson-Krause / Manning)
-│   ├── model3_chemistry.py     # 10-ion speciation, Kohlrausch-Onsager EC & Newton-Raphson pH solver
+│   ├── model3_chemistry.py     # 10-ion speciation, Kohlrausch-Onsager EC, Davies activity & Newton-Raphson pH
 │   ├── model4_crop.py          # Stanghellini canopy transpiration & Van Henten 2-state crop biomass ODEs
 │   ├── model5_diagnostics.py   # Multi-fault residual FDI engine & component-tagged alert dispatch
 │   └── model6_controller.py    # Closed-loop fertigation controller protected by 5 deterministic PLC interlocks
 └── tests/
     ├── __init__.py
+    ├── test_ingestion.py       # Telemetry cleaning, forward-fill & stall detection tests (3 tests)
     ├── test_model1.py          # Model 1 microclimate & NTU tests (3 tests)
     ├── test_model2.py          # Model 2 USGS DO benchmarks & Manning hydraulics (12 tests)
     ├── test_model3.py          # Model 3 EC, pH speciation & buffer capacity (3 tests)
@@ -63,7 +65,7 @@ hydro_agent/
 
 ## 4. Running the Test Suite
 
-Run all 29 unit and integration tests (executes in $< 0.05$ seconds):
+Run all 32 unit and integration tests (executes in $< 0.05$ seconds):
 
 ```bash
 python -m unittest discover -s hydro_agent -p "test_*.py" -v
@@ -85,3 +87,4 @@ python -m hydro_agent.main --single-step
 # Automated fault injection & closed-loop control demo scenario
 python -m hydro_agent.main --demo
 ```
+

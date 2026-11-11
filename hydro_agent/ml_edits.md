@@ -347,3 +347,40 @@ hydro-agent-1  | [INFO] hydro_agent: Step completed at sim_time=599400.0s | Stat
 ```
 
 The ML Agent is currently active in Docker, automatically executing real-time closed-loop diagnostics and control against the Go digital twin backend.
+
+---
+
+## 9. Comprehensive Model Upgrades & Telemetry Ingestion Guard Release
+
+### 1. Telemetry Ingestion Guard (`hydro_agent/client/ingestion.py`)
+- **Zero-Order Hold (Forward-Fill):** Bernoulli packet dropouts (`null` or `NaN`) are caught and forward-filled using the last valid known measurement for that sensor.
+- **Hardware Stall Detector:** Continuously tracks sensor variance over a 20-tick sliding window. Flatlining sensors ($\text{Var}(y_s) \le 10^{-12}$) trigger a latched `SENSOR_HARDWARE_STALL` alert on `/alerts` without alert flooding.
+- **Dynamic Reservoir ID Resolution:** Automatically extracts reservoir ID from sensor component tags or farm topology, supporting both Egyptian benchmarks (`res-1`) and standard configurations (`reservoir-1`).
+
+### 2. Model 1 (Microclimate & Gully Heat Exchanger) Upgrades
+- Added 4th-Order Runge-Kutta numerical integration (`step_rk4()`) with $\Delta t = 300\text{ s}$ across the 4 state variables ($T_{\text{air}}, \chi_{\text{vap}}, \chi_{\text{CO}_2}, T_{\text{res}}$).
+- Added submersible circulation pump motor heat dissipation ($\dot{Q}_{\text{pump,motor}} \approx 15.0\text{ W}$) to the reservoir thermal balance.
+
+### 3. Model 3 (Chemistry & Equilibrium Speciation) Upgrades
+- Added pure water transpiration evaporative concentration term ($\Delta C_{\text{evap},i} = +C_i \cdot \frac{E_{\text{can}} \Delta t}{V_{\text{res}}}$).
+- Added freshwater makeup inflow dilution and makeup alkalinity conservation.
+- Integrated Davies activity coefficient for univalent ions $\log_{10}\gamma_1 = -0.51 \left(\frac{\sqrt{I}}{1 + \sqrt{I}} - 0.3 I\right)$ into the Newton-Raphson electroneutrality pH solver.
+- Monitored calcium phosphate precipitation solubility product ($IAP = [\text{Ca}^{2+}][\text{HPO}_4^{2-}] > 1.0\times 10^{-7}\text{ M}^2$).
+
+### 4. Model 4 (Transpiration & Biomass) Upgrades
+- Calibrated acute hypoxia collapse factor when channel DO $< 1.5\text{ mg/L}$ ($\phi_{\text{DO}} = \max(0.01, \frac{\text{DO}}{1.5} \times 0.40)$).
+- Enforced Andriolo salinity hinge osmotic penalty when $\text{EC}_{25} > 1.96\text{ dS/m}$.
+
+### 5. Model 5 (FDI Diagnostics) Upgrades
+- Implemented alert latching and rate limiting (`min_alert_interval_sec = 1800.0`) to eliminate duplicate alert spam.
+- Integrated dynamic target reservoir ID resolution for Torricelli leak alerts.
+- Added Stock A post-dose jump residual check for `NUTRIENT_IMBALANCE`.
+
+### 6. Model 6 (Fertigation Safety Controller) Upgrades
+- Target reservoir ID dynamically dispatched (`res-1` or `reservoir-1`).
+- Extended mixing turnover cooldown to 7200 s (2 hours).
+- Enforced 5 deterministic PLC safety interlocks ensuring 0.0% Go-core rejection rate (HTTP 422).
+
+### 7. Test Suite Expansion
+- Added `test_ingestion.py` covering forward-fill, stall detection, and dynamic reservoir ID.
+- Full suite expanded to 32 tests (32/32 passing in 0.008s).

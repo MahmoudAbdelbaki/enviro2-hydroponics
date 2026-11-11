@@ -19,6 +19,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from hydro_agent.client.twin_client import TwinClient
+from hydro_agent.client.ingestion import TelemetryIngestionGuard
 from hydro_agent.models.model1_microclimate import (
     CoupledStates,
     FacilityParameters,
@@ -85,6 +86,7 @@ class HydroAutonomousAgent:
         self.m4_crop = CropBiomassEngine()
         self.m5_diagnostics = FaultResidualAnomalyDetector()
         self.m6_controller = FertigationSafetyController()
+        self.ingestion_guard = TelemetryIngestionGuard()
 
         # Operational state memory
         self.last_chemical_dose_sec: float = 0.0
@@ -101,22 +103,34 @@ class HydroAutonomousAgent:
         weather = weather or OutdoorWeather()
 
         # ----------------------------------------------------------------------
-        # Step 1: Telemetry Preprocessing & Mapping
+        # Step 1: Telemetry Cleaning, Forward-Fill & Stall Detection
         # ----------------------------------------------------------------------
+        cleaned_points, stall_alerts = self.ingestion_guard.clean_telemetry_batch(
+            raw_readings=raw_readings,
+            sim_time_sec=sim_time_sec,
+        )
+
+        for stall in stall_alerts:
+            try:
+                self.client.post_alert(simulation_id, asdict(stall))
+                logger.warning("Dispatched Stall Alert [%s]: %s", stall.code, stall.message)
+            except Exception as e:
+                logger.error("Failed to dispatch stall alert to Go backend: %s", e)
+
         telemetry_points = [
             TelemetryPoint(
-                kind=r.get("kind", ""),
-                sensor_id=r.get("sensor_id", ""),
-                value=float(r.get("value", 0.0)),
-                unit=r.get("unit", ""),
-                component_id=r.get("component_id"),
-                tick_index=r.get("tick_index"),
-                sim_time_sec=float(r.get("sim_time_sec", sim_time_sec)),
+                kind=cp.kind,
+                sensor_id=cp.sensor_id,
+                value=cp.value,
+                unit=cp.unit,
+                component_id=cp.component_id,
+                tick_index=cp.tick_index,
+                sim_time_sec=cp.sim_time_sec,
             )
-            for r in raw_readings
-            if r.get("value") is not None
+            for cp in cleaned_points
         ]
         sensor_map = {pt.kind: pt.value for pt in telemetry_points}
+        target_res_id = self.ingestion_guard.resolved_reservoir_id
 
         v_res = sensor_map.get("V_res", 88.5)
         ec_val = sensor_map.get("EC", 2.01)
@@ -198,6 +212,7 @@ class HydroAutonomousAgent:
                 twin_reference_states=twin_refs,
                 actuator_context=ActuatorContext(
                     last_chemical_dose_sec=self.last_chemical_dose_sec,
+                    target_reservoir_id=target_res_id,
                 ),
             )
         )
@@ -234,6 +249,7 @@ class HydroAutonomousAgent:
                     buffer_capacity_meq_l_ph=m3_out.bulk_properties.buffer_capacity_meq_l_ph,
                     last_chemical_dose_sec=self.last_chemical_dose_sec,
                 ),
+                target_component_id=target_res_id,
             )
         )
 
@@ -271,7 +287,7 @@ class HydroAutonomousAgent:
 
     def run_polling_step(self, simulation_id: str) -> Dict[str, Any]:
         """Fetch latest telemetry from Go backend and run one agent evaluation step."""
-        readings_payload = self.client.get_readings(simulation_id)
+        readings_payload = self.client.get_readings(simulation_id, limit=200)
         readings = readings_payload if isinstance(readings_payload, list) else readings_payload.get("readings", [])
 
         sim_status = self.client.get_simulation(simulation_id)

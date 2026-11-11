@@ -37,7 +37,7 @@ class TestHydroAutonomousAgent(unittest.TestCase):
             {"sensor_id": "sen-ph-1", "kind": "pH", "value": 6.25, "unit": "pH"},
             {"sensor_id": "sen-tw-1", "kind": "T_w", "value": 22.0, "unit": "C"},
             {"sensor_id": "sen-vres-1", "kind": "V_res", "value": 90.0, "unit": "L"},
-            {"sensor_id": "sen-do-1", "kind": "DO", "value": 7.80, "unit": "mg/L"},
+            {"sensor_id": "sen-do-1", "kind": "DO", "value": 8.30, "unit": "mg/L"},
             {"sensor_id": "sen-tair-1", "kind": "T_air", "value": 24.5, "unit": "C"},
         ]
 

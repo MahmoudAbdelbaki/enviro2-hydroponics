@@ -53,6 +53,11 @@ class ActuatorContext:
     last_chemical_dose_sec: float = 0.0
     dose_acid_commanded_ml: float = 0.0
     dose_stock_a_commanded_ml: float = 0.0
+    target_reservoir_id: str = "res-1"
+    refill_water_active: bool = False
+    stock_a_dose_active: bool = False
+    expected_delta_ec_post_dose: float = 0.0
+    observed_delta_ec_post_dose: float = 0.0
 
 
 @dataclass
@@ -115,9 +120,10 @@ class Model5HealthMatrix:
 class FaultResidualAnomalyDetector:
     """Physics-informed innovation residual anomaly detector and FDI supervisor."""
 
-    def __init__(self, history_len: int = 20):
+    def __init__(self, history_len: int = 20, min_alert_interval_sec: float = 1800.0):
         # Ring buffers for temporal derivatives and variance tracking
         self.history_len = history_len
+        self.min_alert_interval_sec = min_alert_interval_sec
         self.time_history: Deque[float] = collections.deque(maxlen=history_len)
         self.vres_history: Deque[float] = collections.deque(maxlen=history_len)
         self.ec_history: Deque[float] = collections.deque(maxlen=history_len)
@@ -125,6 +131,16 @@ class FaultResidualAnomalyDetector:
         self.do_channel_history: Deque[float] = collections.deque(maxlen=history_len)
         self.do_res_history: Deque[float] = collections.deque(maxlen=history_len)
         self.last_good_readings: Dict[str, float] = {}
+        # Alert dispatch latch to avoid spamming the backend with duplicate active alerts
+        self.alert_latch: Dict[str, float] = {}
+
+    def _should_dispatch_alert(self, code: str, current_time: float) -> bool:
+        """Rate limit alert dispatch by min_alert_interval_sec."""
+        last_time = self.alert_latch.get(code, -1e9)
+        if current_time - last_time >= self.min_alert_interval_sec:
+            self.alert_latch[code] = current_time
+            return True
+        return False
 
     def _update_histories(self, t_sec: float, sensor_map: Dict[str, TelemetryPoint]):
         """Maintain historical buffers with forward-fill for dropouts."""
@@ -193,58 +209,63 @@ class FaultResidualAnomalyDetector:
                     fault_code = "IMPLIED_PUMP_OR_AERATION_FAULT"
                     faults.append(fault_code)
                     sensor_health[sensor_map["DO"].sensor_id] = "DEGRADED"
-                    alerts.append(
-                        DiagnosticAlert(
-                            component_id="pump-1",
-                            severity="critical",
-                            code=fault_code,
-                            message=(
-                                f"Outlet DO dropped to {do_obs:.2f} mg/L (expected {do_ch_exp:.2f} mg/L) "
-                                f"while reservoir DO remains saturated at {do_res_exp:.2f} mg/L. "
-                                "Pump degradation or root obstruction diagnosed."
-                            ),
+                    if self._should_dispatch_alert(fault_code, inputs.sim_time_sec):
+                        alerts.append(
+                            DiagnosticAlert(
+                                component_id="pump-1",
+                                severity="critical",
+                                code=fault_code,
+                                message=(
+                                    f"Outlet DO dropped to {do_obs:.2f} mg/L (expected {do_ch_exp:.2f} mg/L) "
+                                    f"while reservoir DO remains saturated at {do_res_exp:.2f} mg/L. "
+                                    "Pump degradation or root obstruction diagnosed."
+                                ),
+                            )
                         )
-                    )
-                else:
+                elif do_obs < 4.0 and do_res_exp < 4.0:
                     # Parallel drop: both collapsed -> aerator compressor failure
                     fault_code = "AERATION_LOSS_SUSPECTED"
                     faults.append(fault_code)
-                    alerts.append(
-                        DiagnosticAlert(
-                            component_id="aer-1",
-                            severity="critical",
-                            code=fault_code,
-                            message=(
-                                f"Both channel DO ({do_obs:.2f} mg/L) and reservoir DO ({do_res_exp:.2f} mg/L) "
-                                "collapsed below hypoxic limits. Aeration compressor or diffuser clog diagnosed."
-                            ),
+                    if self._should_dispatch_alert(fault_code, inputs.sim_time_sec):
+                        alerts.append(
+                            DiagnosticAlert(
+                                component_id="aer-1",
+                                severity="critical",
+                                code=fault_code,
+                                message=(
+                                    f"Both channel DO ({do_obs:.2f} mg/L) and reservoir DO ({do_res_exp:.2f} mg/L) "
+                                    "collapsed below hypoxic limits. Aeration compressor or diffuser clog diagnosed."
+                                ),
+                            )
                         )
-                    )
 
         # ----------------------------------------------------------------------
         # Fault 3: Torricelli Reservoir Leak Invariance
         # ----------------------------------------------------------------------
+        target_res = inputs.actuator_context.target_reservoir_id or "res-1"
         if len(self.vres_history) >= 3:
             dv_dt_hr = self._compute_rate(self.vres_history)
             dec_dt_hr = self._compute_rate(self.ec_history)
 
-            # Torricelli leak: volume drops rapidly while salinity does not concentrate (dEC/dt <= 0)
-            if dv_dt_hr < -0.85 and dec_dt_hr <= 0.01:
+            # Torricelli leak: volume drops rapidly while salinity does not concentrate (dEC/dt <= 0.005)
+            # and no active freshwater refill is occurring
+            if dv_dt_hr < -0.85 and dec_dt_hr <= 0.005 and not inputs.actuator_context.refill_water_active:
                 fault_code = "RESERVOIR_LEAK_SUSPECTED"
                 faults.append(fault_code)
                 sensor_id = sensor_map.get("V_res", TelemetryPoint("V_res", "sen-vres-1", 0.0, "L")).sensor_id
                 sensor_health[sensor_id] = "DEGRADED"
-                alerts.append(
-                    DiagnosticAlert(
-                        component_id="res-1",
-                        severity="critical",
-                        code=fault_code,
-                        message=(
-                            f"Reservoir loss rate ({dv_dt_hr:.2f} L/h) exceeds normal evapotranspiration (0.05-0.22 L/h) "
-                            f"without salinity concentration (dEC/dt = {dec_dt_hr:.3f} dS/m/h). Structural leak detected."
-                        ),
+                if self._should_dispatch_alert(fault_code, inputs.sim_time_sec):
+                    alerts.append(
+                        DiagnosticAlert(
+                            component_id=target_res,
+                            severity="critical",
+                            code=fault_code,
+                            message=(
+                                f"Reservoir loss rate ({dv_dt_hr:.2f} L/h) exceeds normal evapotranspiration (0.05-0.22 L/h) "
+                                f"without salinity concentration (dEC/dt = {dec_dt_hr:.3f} dS/m/h). Structural leak detected on {target_res}."
+                            ),
+                        )
                     )
-                )
 
         # ----------------------------------------------------------------------
         # Fault 4: pH Sensor Drift Decoupling
@@ -260,38 +281,63 @@ class FaultResidualAnomalyDetector:
                 fault_code = "PH_PROBE_DRIFT_SUSPECTED"
                 faults.append(fault_code)
                 sensor_health[sensor_map["pH"].sensor_id] = "DEGRADED"
-                alerts.append(
-                    DiagnosticAlert(
-                        component_id="sen-ph-1",
-                        severity="warning",
-                        code=fault_code,
-                        message=(
-                            f"Observed pH ({ph_obs:.2f}) diverges from speciation expectation ({ph_exp:.2f}) "
-                            f"by |r_pH| = {residual_ph:.2f} without actuator chemical events. Probe drift suspected."
-                        ),
+                if self._should_dispatch_alert(fault_code, inputs.sim_time_sec):
+                    alerts.append(
+                        DiagnosticAlert(
+                            component_id="sen-ph-1",
+                            severity="warning",
+                            code=fault_code,
+                            message=(
+                                f"Observed pH ({ph_obs:.2f}) diverges from speciation expectation ({ph_exp:.2f}) "
+                                f"by |r_pH| = {residual_ph:.2f} without actuator chemical events. Probe drift suspected."
+                            ),
+                        )
                     )
-                )
 
         # ----------------------------------------------------------------------
-        # Fault 5: Heat Wave Spike
+        # Fault 5: Heat Wave Surge
         # ----------------------------------------------------------------------
         if "T_air" in sensor_map:
             t_air_obs = sensor_map["T_air"].value
             t_air_exp = inputs.twin_reference_states.t_air_c
             if (t_air_obs - t_air_exp) > 3.5:
-                fault_code = "HEAT_WAVE_EMERGENCY"
+                fault_code = "HEAT_WAVE"
                 faults.append(fault_code)
-                alerts.append(
-                    DiagnosticAlert(
-                        component_id="enc-1",
-                        severity="warning",
-                        code=fault_code,
-                        message=(
-                            f"Enclosure air temperature ({t_air_obs:.1f} °C) elevated > 3.5 °C above reference ({t_air_exp:.1f} °C). "
-                            "Acute greenhouse thermal surge diagnosed."
-                        ),
+                if self._should_dispatch_alert(fault_code, inputs.sim_time_sec):
+                    alerts.append(
+                        DiagnosticAlert(
+                            component_id="enc-1",
+                            severity="warning",
+                            code=fault_code,
+                            message=(
+                                f"Enclosure air temperature ({t_air_obs:.1f} °C) elevated > 3.5 °C above reference ({t_air_exp:.1f} °C). "
+                                "Acute greenhouse thermal surge diagnosed."
+                            ),
+                        )
                     )
-                )
+
+        # ----------------------------------------------------------------------
+        # Fault 6: Nutrient Imbalance (Stock A)
+        # ----------------------------------------------------------------------
+        act_ctx = inputs.actuator_context
+        if act_ctx.stock_a_dose_active:
+            delta_ec_diff = abs(act_ctx.observed_delta_ec_post_dose - act_ctx.expected_delta_ec_post_dose)
+            if delta_ec_diff > 0.10:
+                fault_code = "NUTRIENT_IMBALANCE"
+                faults.append(fault_code)
+                if self._should_dispatch_alert(fault_code, inputs.sim_time_sec):
+                    alerts.append(
+                        DiagnosticAlert(
+                            component_id="stock-a",
+                            severity="warning",
+                            code=fault_code,
+                            message=(
+                                f"Post-dosing EC jump ({act_ctx.observed_delta_ec_post_dose:.3f} dS/m) deviates from "
+                                f"expected ({act_ctx.expected_delta_ec_post_dose:.3f} dS/m) by |delta_EC| = {delta_ec_diff:.3f} dS/m. "
+                                "Stock A stock solution dilution or pump calibration fault."
+                            ),
+                        )
+                    )
 
         status = "DEGRADED" if faults else "NOMINAL"
         return Model5HealthMatrix(

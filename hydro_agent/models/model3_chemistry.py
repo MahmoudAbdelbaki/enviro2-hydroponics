@@ -208,13 +208,21 @@ class SolutionChemistrySolver:
     # Newton-Raphson Electroneutrality Speciation for pH
     # --------------------------------------------------------------------------
 
+    def compute_davies_gamma1(self, i_str: float = 0.02) -> float:
+        """Davies activity coefficient gamma_1 for univalent ions (H+, OH-, HCO3-)."""
+        i_safe = max(1e-5, min(0.2, i_str))
+        sqrt_i = math.sqrt(i_safe)
+        log10_gamma1 = -0.51 * (sqrt_i / (1.0 + sqrt_i) - 0.3 * i_safe)
+        return float(10.0 ** log10_gamma1)
+
     def solve_ph_and_buffer_capacity(
         self,
         alkalinity_meq_l: float,
         p_tot_mmol_l: float,
         nh4_tot_mmol_l: float,
-        max_iters: int = 25,
-        tol: float = 1e-9,
+        i_str: float = 0.02,
+        max_iters: int = 15,
+        tol: float = 1e-8,
     ) -> Tuple[float, float]:
         """Solve F([H+]) = 0 for free proton activity and analytical Van Slyke buffer capacity."""
         c = self.c
@@ -233,7 +241,7 @@ class SolutionChemistrySolver:
             alpha2_c = (c.ka1_c * c.ka2_c) / denom_c
             carb_charge = c_t * (alpha1_c + 2.0 * alpha2_c)
 
-            # Phosphate alkalinity contribution (relative to H2PO4- endpoint)
+            # Phosphate alkalinity contribution (relative to H2PO4- endpoint at pH 4.5)
             denom_p = (h_plus ** 3) + c.ka1_p * (h_plus ** 2) + c.ka1_p * c.ka2_p * h_plus + c.ka1_p * c.ka2_p * c.ka3_p
             alpha2_p = (c.ka1_p * c.ka2_p * h_plus) / denom_p
             alpha3_p = (c.ka1_p * c.ka2_p * c.ka3_p) / denom_p
@@ -260,7 +268,10 @@ class SolutionChemistrySolver:
                 break
             h_plus = h_plus_new
 
-        ph = -math.log10(max(1e-14, h_plus))
+        # Davies activity coefficient: pH = -log10({H+}) = -log10(gamma_1 * [H+])
+        gamma1 = self.compute_davies_gamma1(i_str)
+        activity_h = gamma1 * h_plus
+        ph = -math.log10(max(1e-14, activity_h))
         ph = max(4.0, min(9.0, ph))
 
         # Van Slyke Buffer Capacity beta_buf = d[Alk]/dpH [meq L^(-1) pH^(-1)]
@@ -280,7 +291,7 @@ class SolutionChemistrySolver:
         """Propagate ion mass balances, calculate precipitation, and compute pH & EC."""
         v_tot_l = max(10.0, inputs.total_volume_l)
 
-        # 1. Update individual ion concentrations from dosing & uptake
+        # 1. Update individual ion concentrations from dosing, uptake, and evaporative concentration
         dosing = inputs.dosing_actions
         uptake = inputs.crop_uptake_fluxes_mol_s
 
@@ -299,6 +310,21 @@ class SolutionChemistrySolver:
             self.ions_mmol_l["K"] += (dosing.dose_stock_b_ml * 2.0) / v_tot_l
             self.ions_mmol_l["NH4"] += (dosing.dose_stock_b_ml * 0.5) / v_tot_l
 
+        # Evaporative concentration: Pure water transpiration removes pure H2O, concentrating remaining ions
+        v_transp_l = max(0.0, inputs.transpiration_rate_l_s * dt_sec)
+        evap_fraction = min(0.05, v_transp_l / v_tot_l)
+        for ion_name in self.ions_mmol_l:
+            self.ions_mmol_l[ion_name] += self.ions_mmol_l[ion_name] * evap_fraction
+
+        # Makeup freshwater dilution if makeup inflow active
+        if inputs.makeup_water.flow_rate_l_s > 0:
+            v_makeup_l = inputs.makeup_water.flow_rate_l_s * dt_sec
+            for ion_name, conc_makeup in inputs.makeup_water.ions_mmol_l.items():
+                if ion_name in self.ions_mmol_l:
+                    current_mmol = self.ions_mmol_l[ion_name] * v_tot_l
+                    added_mmol = conc_makeup * v_makeup_l
+                    self.ions_mmol_l[ion_name] = (current_mmol + added_mmol) / (v_tot_l + v_makeup_l)
+
         # Crop biological nutrient uptake subtraction
         for ion_name, flux_mol_s in uptake.items():
             if ion_name in self.ions_mmol_l:
@@ -311,28 +337,42 @@ class SolutionChemistrySolver:
         nh4_flux = uptake.get("NH4", 8.0e-7)
         delta_alk_root = (self.c.gamma_oh_no3 * no3_flux - self.c.gamma_h_nh4 * nh4_flux) * 1e3 * dt_sec / v_tot_l
         acid_added_meq = (dosing.dose_acid_ml * dosing.acid_normality_eq_l) / v_tot_l
+        makeup_alk = (inputs.makeup_water.flow_rate_l_s * dt_sec * inputs.makeup_water.alkalinity_meq_l) / v_tot_l
 
-        self.alkalinity_meq_l = max(0.05, self.alkalinity_meq_l + delta_alk_root - acid_added_meq)
+        self.alkalinity_meq_l = max(0.05, self.alkalinity_meq_l + delta_alk_root + makeup_alk - acid_added_meq)
 
-        # 3. Solve Electroneutrality for pH & Buffer Capacity
+        # 3. Compute Ionic Strength first for Davies activity coefficient
+        i_str = self.compute_ionic_strength(self.ions_mmol_l)
+
+        # 4. Solve Electroneutrality for pH & Buffer Capacity with Davies activity
         ph, beta_buf = self.solve_ph_and_buffer_capacity(
             alkalinity_meq_l=self.alkalinity_meq_l,
             p_tot_mmol_l=self.ions_mmol_l["H2PO4"],
             nh4_tot_mmol_l=self.ions_mmol_l["NH4"],
+            i_str=i_str,
         )
 
-        # 4. Precipitation Checks
+        # 5. Precipitation Checks (Fe-chelate degradation at pH > 7.2 and CaHPO4 Ksp)
         fe_precip = 0.0
         cahpo4_precip = 0.0
         if ph > 7.2:
+            # Fe chelate destabilization
             fe_precip = 0.005 * self.ions_mmol_l["Fe_chel"]
             self.ions_mmol_l["Fe_chel"] -= fe_precip
-        if ph > 7.5 and (self.ions_mmol_l["Ca"] * self.ions_mmol_l["H2PO4"] > 10.0):
-            cahpo4_precip = 0.01
-            self.ions_mmol_l["Ca"] -= cahpo4_precip
-            self.ions_mmol_l["H2PO4"] -= cahpo4_precip
 
-        # 5. Compute Bulk EC and Ionic Strength
+        # CaHPO4 solubility: Ca2+ * HPO4(2-) > Ksp ~ 1.0e-7 M^2
+        ca_molar = self.ions_mmol_l["Ca"] * 1e-3
+        h_plus = 10.0 ** (-ph)
+        denom_p = (h_plus ** 3) + self.c.ka1_p * (h_plus ** 2) + self.c.ka1_p * self.c.ka2_p * h_plus + self.c.ka1_p * self.c.ka2_p * self.c.ka3_p
+        alpha2_p = (self.c.ka1_p * self.c.ka2_p * h_plus) / denom_p
+        hpo4_molar = (self.ions_mmol_l["H2PO4"] * 1e-3) * alpha2_p
+        iap_cahpo4 = ca_molar * hpo4_molar
+        if iap_cahpo4 > 1.0e-7 and ph > 7.2:
+            cahpo4_precip = min(0.02, (iap_cahpo4 - 1.0e-7) * 1e3 * 0.1)
+            self.ions_mmol_l["Ca"] = max(0.1, self.ions_mmol_l["Ca"] - cahpo4_precip)
+            self.ions_mmol_l["H2PO4"] = max(0.1, self.ions_mmol_l["H2PO4"] - cahpo4_precip)
+
+        # 6. Compute Bulk EC and Ionic Strength
         ec25, ec_raw, i_str = self.compute_ec(self.ions_mmol_l, inputs.water_temperature_c)
 
         return Model3Output(
