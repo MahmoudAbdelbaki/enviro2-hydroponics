@@ -51,7 +51,7 @@ export function createApi({ baseUrl = '', mlKey = 'sensor-x-dev-ml-key' } = {}) 
 
     // Controller I/O (POST requires the ML bearer key; the PLC guardian may answer 422)
     listAlerts: (id) => call('GET', `${sim(id)}/alerts`).then((r) => r.data || []),
-    listCommands: (id) => call('GET', `${sim(id)}/commands`).then((r) => r.data || []),
+    listCommands: (id, limit = 500) => call('GET', `${sim(id)}/commands?limit=${limit}`).then((r) => r.data || []),
     postAlert: (id, alert) => call('POST', `${sim(id)}/alerts`, alert, { auth: true }).then((r) => r.data),
     postCommand: (id, cmd) => call('POST', `${sim(id)}/commands`, cmd, { auth: true, okStatuses: [422] }).then((r) => r.data),
   };

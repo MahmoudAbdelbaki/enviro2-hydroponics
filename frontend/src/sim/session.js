@@ -190,7 +190,7 @@ export class TwinSession extends Emitter {
     if (stepsJustRun > 0 || this.commands.length === 0) {
       const [alerts, commands] = await Promise.all([
         this.api.listAlerts(this.simId),
-        this.api.listCommands(this.simId),
+        this.api.listCommands(this.simId, 500),
       ]);
       this.alerts = alerts;
       this.commands = commands;
