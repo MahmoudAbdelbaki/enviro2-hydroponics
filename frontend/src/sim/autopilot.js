@@ -129,6 +129,7 @@ export class Autopilot {
     this.installed = new Set(spec.sensors.map((s) => s.kind));
     this.maxL = spec.reservoir.max_volume_l;
     this.targetL = spec.reservoir.initial_volume_l;
+    this.bayScale = Math.max(1, (spec.channels?.length || 2) / 2);
     this.lastDecisionSec = -Infinity;
     this.lastChemSec = -Infinity;
     this.streak = {};
@@ -143,43 +144,66 @@ export class Autopilot {
     this.lastPHSec = 0;
     this.twinEC = null;
     this.twinPH = null;
+    this.lastExpected = null;
   }
 
-  decide({ simTimeSec, measuredReadings }) {
+  /** Expected physical/chemical readings at `simTimeSec` (shared by residual detectors & symptom tracker). */
+  computeExpected(simTimeSec, { tw = 22.0, ec = null } = {}) {
+    const ecVal = ec ?? this.twinEC ?? this.design.targets.ec;
+    const doSat = doSatBensonKrause(tw, ecVal, this.design.location?.elev || 7.0);
+    const day = simTimeSec / 86400.0;
+    const normalChannelDrop = 0.10 + 0.45 * Math.min(1.0, day / 28.0);
+    const expectedDO = doSat * 0.985 - normalChannelDrop;
+    const expectedTAir = expectedOutdoorWeather(this.design.location?.startDoy, simTimeSec) + 1.2;
+    return {
+      DO: expectedDO,
+      V_res: +(0.15 * this.bayScale).toFixed(2), // max normal transpiration rate L/hr scaled to crop footprint
+      pH: this.twinPH,
+      EC: this.twinEC,
+      T_air: expectedTAir,
+      T_w: tw,
+    };
+  }
+
+  decide({ simTimeSec, measuredReadings, stocks = null, pauseDosing = false }) {
     const out = { commands: [], alerts: [], residuals: {}, decided: false };
     if (simTimeSec - this.lastDecisionSec < HOUR - 1) return out;
     const dt = this.lastDecisionSec > 0 ? Math.max(0, simTimeSec - this.lastDecisionSec) : 3600.0;
     this.lastDecisionSec = simTimeSec;
     out.decided = true;
 
+    const phDepleted = !!(stocks?.ph && stocks.ph.remainingMl < 1);
+    const aDepleted = !!(stocks?.a && stocks.a.remainingMl < 1);
+    const bDepleted = !!(stocks?.b && stocks.b.remainingMl < 1);
+
     const win = 2 * HOUR;
     const m = windowStats(measuredReadings, simTimeSec, win);
     const recent = windowStats(measuredReadings, simTimeSec, HOUR / 2);
 
-    // Luenberger digital-twin observer: tracks slow seasonal chemical drift (72-hour time constant)
-    // while remaining sensitive to sudden actuator jumps or rapid sensor drift faults
-    const alphaObs = 1.0 - Math.exp(-dt / (72.0 * 3600.0));
+    // Luenberger digital-twin observer: tracks slow seasonal chemical drift (72-hour time constant).
+    // When chemical dosing is stalled by an empty bottle, allow observer to follow physical pH/EC climb
+    // so genuine chemical drift isn't misdiagnosed as a faulty probe.
+    const tauHours = Math.max(12.0, 72.0 / Math.sqrt(this.bayScale));
+    const alphaObs = 1.0 - Math.exp(-dt / (tauHours * 3600.0));
     if (this.twinPH == null && recent.pH?.mean != null) {
       this.twinPH = recent.pH.mean;
     } else if (!this.trustTwinPH && recent.pH?.mean != null) {
-      this.twinPH += alphaObs * (recent.pH.mean - this.twinPH);
+      const alphaPH = phDepleted ? Math.max(alphaObs, 0.35) : alphaObs;
+      this.twinPH += alphaPH * (recent.pH.mean - this.twinPH);
+    } else if (this.trustTwinPH && this.twinPH != null) {
+      // Model natural root nitrate OH- release so twinPH continues driving scheduled acid maintenance
+      this.twinPH = clamp(this.twinPH + 0.016 * (dt / 3600.0), 5.4, 6.8);
     }
     if (this.twinEC == null && recent.EC?.mean != null) {
       this.twinEC = recent.EC.mean;
     } else if (recent.EC?.mean != null) {
-      this.twinEC += alphaObs * (recent.EC.mean - this.twinEC);
+      const alphaEC = (aDepleted || bDepleted) ? Math.max(alphaObs, 0.25) : alphaObs;
+      this.twinEC += alphaEC * (recent.EC.mean - this.twinEC);
     }
 
     // Compute expected physical twin readings
     const tw = recent.T_w?.mean ?? 22.0;
     const ec = recent.EC?.mean ?? this.twinEC;
-    const doSat = doSatBensonKrause(tw, ec, this.design.location?.elev || 7.0);
-
-    // Expected outlet DO in working NFT gully: drop increases as root biomass grows (0.10 -> 0.50 mg/L)
-    const day = simTimeSec / 86400.0;
-    const normalChannelDrop = 0.10 + 0.45 * Math.min(1.0, day / 28.0);
-    const expectedDO = doSat * 0.985 - normalChannelDrop;
-    const expectedTAir = expectedOutdoorWeather(this.design.location?.startDoy, simTimeSec) + 1.2;
 
     // Hourly rate of tank volume loss
     const currentV = recent.V_res?.mean ?? this.targetL;
@@ -204,14 +228,8 @@ export class Autopilot {
     const t = this.design.targets;
     const ecTarget = t.ec - (this.active.has('HEAT_STRESS_EVENT') ? 0.2 : 0);
 
-    const expected = {
-      DO: expectedDO,
-      V_res: 0.15, // max normal transpiration rate L/hr
-      pH: this.twinPH,
-      EC: this.twinEC,
-      T_air: expectedTAir,
-      T_w: tw,
-    };
+    const expected = this.computeExpected(simTimeSec, { tw, ec });
+    this.lastExpected = expected;
 
     // Actual observation for each detector
     const obs = {
@@ -224,8 +242,8 @@ export class Autopilot {
     };
 
     // ---- 1. Anomaly detection on twin residuals -------------------------------
-    // Allow a 72-hour (3-day) nursery settling period after transplanting before arming detectors
-    const armed = simTimeSec >= 72 * HOUR;
+    // Allow a brief 2-hour window to populate baseline rolling averages before arming detectors
+    const armed = simTimeSec >= 2 * HOUR;
 
     for (const d of DETECTORS) {
       if (!this.installed.has(d.kind) || obs[d.kind] == null || expected[d.kind] == null) continue;
@@ -241,7 +259,10 @@ export class Autopilot {
 
       if (!armed) continue;
 
-      const suppressed = (d.suppressedBy || []).some((c) => this.active.has(c));
+      const stockBlocked =
+        (d.code === 'PH_PROBE_DRIFT_SUSPECTED' && phDepleted) ||
+        (d.code === 'NUTRIENT_MIX_ANOMALY' && (aDepleted || bDepleted));
+      const suppressed = stockBlocked || (d.suppressedBy || []).some((c) => this.active.has(c));
       const inAlarm = !suppressed && (d.dir === 0 ? Math.abs(r) > thr : d.dir * r > thr);
       if (inAlarm) {
         this.streak[d.key] = (this.streak[d.key] || 0) + 1;
@@ -277,11 +298,18 @@ export class Autopilot {
     }
 
     // ---- 2. Closed-loop care: water, plant food, pH --------------------------
+    if (pauseDosing) {
+      return out; // Operator Maintenance / Manual Mode: keep AI anomaly detection active, pause automatic dosing
+    }
+
     const V = recent.V_res?.mean ?? this.targetL;
     const EC = recent.EC?.mean ?? this.twinEC;
     const pHsrc = this.trustTwinPH ? this.twinPH : (recent.pH?.mean ?? this.twinPH);
+    const phTarget = clamp(t.ph ?? 5.90, 5.4, 6.5);
 
-    const chemReady = simTimeSec - this.lastChemSec >= 2 * HOUR;
+    const urgentCare = pHsrc > phTarget + 0.18 || EC < ecTarget - 0.12 || V < 0.94 * this.targetL;
+    const minCooldown = (this.bayScale > 1.5 && urgentCare) ? HOUR : 2 * HOUR;
+    const chemReady = simTimeSec - this.lastChemSec >= minCooldown;
     if (!chemReady) {
       return out; // Wait for mixing cooldown to ensure all additions are safely coordinated
     }
@@ -293,45 +321,55 @@ export class Autopilot {
       parts.push(`top up ${fmt(refill, 1)} L`);
     }
 
-    let doseAB = 0;
+    let doseA = 0;
+    let doseB = 0;
     let acid = 0;
     let base = 0;
 
     if (V > 0) {
       const vAfter = V + refill;
+      const maxSafeAB = Math.max(25, Math.floor(vAfter * 0.25));
 
-      // 1. EC maintenance: dose Part A & B together
+      // 1. EC maintenance: dose Part A & B together (capped to available stock volume & PLC shock limit)
       if (EC < ecTarget - 0.05) {
-        doseAB = Math.round(clamp((ecTarget - EC) * vAfter * 4.0, 4, 25));
-        parts.push(`plant food +${doseAB} mL A&B`);
+        const reqAB = Math.round(clamp((ecTarget - EC) * vAfter * 4.0, 4, maxSafeAB));
+        const aAvail = stocks?.a ? stocks.a.remainingMl : reqAB;
+        const bAvail = stocks?.b ? stocks.b.remainingMl : reqAB;
+        doseA = Math.min(reqAB, Math.floor(Math.max(0, aAvail)));
+        doseB = Math.min(reqAB, Math.floor(Math.max(0, bAvail)));
+        if (doseA > 0 && doseB > 0) parts.push(`plant food +${doseA}/${doseB} mL A&B`);
+        else if (doseA > 0) parts.push(`Stock A +${doseA} mL (B empty)`);
+        else if (doseB > 0) parts.push(`Stock B +${doseB} mL (A empty)`);
       }
 
-      // 2. pH maintenance: neutralize source water + root nitrate OH- release
+      // 2. pH maintenance: neutralize incoming refill alkalinity + existing tank pH climb without overshooting < 4.5 pH
       const srcAlk = this.design.chemistry?.alk || 0.65;
-      let acidNeeded = refill > 0 ? refill * srcAlk * 1.8 : 0;
-      if (pHsrc > 6.00) {
-        acidNeeded += clamp((pHsrc - 5.90) * vAfter * 1.5, 3, 20);
-      }
-      if (acidNeeded >= 3) {
-        acid = Math.round(clamp(acidNeeded, 3, 22));
-        parts.push(`pH balance +${acid} mL acid`);
-      } else if (pHsrc < 5.50) {
-        base = Math.round(clamp((5.85 - pHsrc) * vAfter * 1.2, 3, 20));
-        parts.push(`pH balance +${base} mL base`);
+      const phAvail = stocks?.ph ? stocks.ph.remainingMl : Infinity;
+      const refillAcid = refill > 0 ? refill * srcAlk * 1.8 : 0;
+      const maxTankAcid = Math.max(20, Math.floor(V * 0.22));
+      const tankAcid = pHsrc > phTarget + 0.10 ? clamp((pHsrc - phTarget) * V * 1.5, 3, maxTankAcid) : 0;
+      const acidNeeded = refillAcid + tankAcid;
+      const maxTotalAcid = Math.min(Math.floor(vAfter * 0.75), Math.round(refillAcid + maxTankAcid));
+      if (acidNeeded >= 3 && phAvail > 0) {
+        acid = Math.min(Math.round(clamp(acidNeeded, 3, maxTotalAcid)), Math.floor(phAvail));
+        if (acid >= 1) parts.push(`pH balance +${acid} mL acid`);
+        else acid = 0;
+      } else if (pHsrc < phTarget - 0.40 && phAvail > 0) {
+        base = Math.min(Math.round(clamp((phTarget - 0.05 - pHsrc) * vAfter * 1.2, 3, 20)), Math.floor(phAvail));
+        if (base >= 1) parts.push(`pH balance +${base} mL base`);
+        else base = 0;
       }
     }
 
-    if (refill > 0.1 || doseAB > 0 || acid > 0 || base > 0) {
+    if (refill > 0.1 || doseA > 0 || doseB > 0 || acid > 0 || base > 0) {
       const cmd = {
         target_component_id: IDS.reservoir,
         action: 'dose',
         reason: `Autopilot: ${parts.join(' · ')}`,
       };
       if (refill > 0.1) cmd.refill_water_l = Math.round(refill * 100) / 100;
-      if (doseAB > 0) {
-        cmd.dose_stock_a_ml = doseAB;
-        cmd.dose_stock_b_ml = doseAB;
-      }
+      if (doseA > 0) cmd.dose_stock_a_ml = doseA;
+      if (doseB > 0) cmd.dose_stock_b_ml = doseB;
       if (acid > 0) cmd.dose_acid_ml = acid;
       if (base > 0) cmd.dose_base_ml = base;
       out.commands.push(cmd);

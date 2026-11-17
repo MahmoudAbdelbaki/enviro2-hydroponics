@@ -29,17 +29,43 @@ services:
       HYDRO_LOG_LEVEL: "info"
     ports:
       - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/readyz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
+    restart: unless-stopped
 
   hydro-agent:
     build:
       context: .
       dockerfile: Dockerfile.agent
     depends_on:
-      - hydro
+      hydro:
+        condition: service_healthy
     environment:
       HYDRO_TWIN_URL: "http://hydro:8080"
       HYDRO_ML_API_KEY: "sensor-x-dev-ml-key"
       HYDRO_LOG_LEVEL: "info"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_HYDRO_ML_API_KEY: "sensor-x-dev-ml-key"
+    depends_on:
+      hydro:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     restart: unless-stopped
 
 volumes:

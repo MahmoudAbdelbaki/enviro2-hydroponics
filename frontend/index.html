@@ -91,6 +91,10 @@
               +1 DAY
             </button>
 
+            <button class="btn mono" id="btn-jump-d10" title="Fast-forward to active vegetative growth (Day 10)">
+              TO D10
+            </button>
+
             <span class="tb-divider"></span>
 
             <button class="btn btn-warn mono" id="btn-open-challenge" title="Inject a physical fault and observe AI + PLC response">
@@ -105,38 +109,145 @@
           </div>
         </header>
 
+        <div class="app-banner hidden" id="app-banner" role="status" aria-live="polite">
+          <span class="dot" id="app-banner-dot"></span>
+          <span class="banner-msg mono" id="app-banner-msg"></span>
+          <button class="btn btn-xs btn-ghost mono" id="app-banner-close" aria-label="Dismiss message">DISMISS</button>
+        </div>
+
+        <div class="stock-banner hidden" id="stock-banner" role="alert" aria-live="assertive">
+          <span class="dot" id="stock-banner-dot"></span>
+          <div class="stock-banner-copy">
+            <span class="stock-banner-title mono" id="stock-banner-title">STOCK WARNING</span>
+            <span class="stock-banner-msg" id="stock-banner-msg"></span>
+          </div>
+          <div class="stock-banner-actions">
+            <span class="stock-banner-per" id="stock-banner-per"></span>
+            <button class="btn btn-primary btn-xs mono" id="btn-banner-topup-all">+ TOP UP ALL</button>
+          </div>
+        </div>
+
         <!-- ============================================================
              LIVE TELEMETRY KPI STRIP (6 columns)
              ============================================================ -->
         <section class="kpi-strip" aria-label="Live telemetry">
-          <div class="kpi">
-            <div class="kpi-label">Plant Food (EC)</div>
-            <div class="kpi-value"><span class="mono" id="kpi-ec">—</span><span class="kpi-unit">mS/cm</span></div>
+          <div class="kpi" data-kpi="ec">
+            <div class="kpi-head">
+              <span class="kpi-label">Plant Food (EC)</span>
+              <span class="kpi-kind kind-sensor mono" title="Direct physical EC sensor">SENSOR</span>
+            </div>
+            <div class="kpi-value">
+              <span class="mono" id="kpi-ec">—</span>
+              <span class="kpi-unit">mS/cm</span>
+              <span class="kpi-trend mono is-flat" id="kpi-trend-ec" title="1h trend">—</span>
+            </div>
+            <div class="kpi-range">
+              <div class="kpi-bar" aria-hidden="true">
+                <div class="kpi-bar-safe" id="kpi-safe-ec"></div>
+                <div class="kpi-bar-pin" id="kpi-pin-ec"></div>
+              </div>
+              <span class="kpi-target mono" id="kpi-target-ec">Target: 1.6–2.4</span>
+            </div>
             <div class="kpi-src mono">sen-ec-1 · res-1</div>
           </div>
-          <div class="kpi">
-            <div class="kpi-label">Acidity (pH)</div>
-            <div class="kpi-value"><span class="mono" id="kpi-ph">—</span><span class="kpi-unit">pH</span></div>
+
+          <div class="kpi" data-kpi="ph">
+            <div class="kpi-head">
+              <span class="kpi-label">Acidity (pH)</span>
+              <span class="kpi-kind kind-sensor mono" title="Direct physical pH probe">SENSOR</span>
+            </div>
+            <div class="kpi-value">
+              <span class="mono" id="kpi-ph">—</span>
+              <span class="kpi-unit">pH</span>
+              <span class="kpi-trend mono is-flat" id="kpi-trend-ph" title="1h trend">—</span>
+            </div>
+            <div class="kpi-range">
+              <div class="kpi-bar" aria-hidden="true">
+                <div class="kpi-bar-safe" id="kpi-safe-ph"></div>
+                <div class="kpi-bar-pin" id="kpi-pin-ph"></div>
+              </div>
+              <span class="kpi-target mono" id="kpi-target-ph">Target: 5.5–6.5</span>
+            </div>
             <div class="kpi-src mono">sen-ph-1 · res-1</div>
           </div>
-          <div class="kpi">
-            <div class="kpi-label">Tank Oxygen (DO)</div>
-            <div class="kpi-value"><span class="mono" id="kpi-do-tank">—</span><span class="kpi-unit">mg/L</span></div>
+
+          <div class="kpi" data-kpi="do-tank">
+            <div class="kpi-head">
+              <span class="kpi-label">Tank Oxygen (DO)</span>
+              <span class="kpi-kind kind-twin mono" title="Physics model / Henry's law twin estimate">MODEL</span>
+            </div>
+            <div class="kpi-value">
+              <span class="mono" id="kpi-do-tank">—</span>
+              <span class="kpi-unit">mg/L</span>
+              <span class="kpi-trend mono is-flat" id="kpi-trend-do-tank" title="1h trend">—</span>
+            </div>
+            <div class="kpi-range">
+              <div class="kpi-bar" aria-hidden="true">
+                <div class="kpi-bar-safe" id="kpi-safe-do-tank"></div>
+                <div class="kpi-bar-pin" id="kpi-pin-do-tank"></div>
+              </div>
+              <span class="kpi-target mono" id="kpi-target-do-tank">Target: ≥ 6.5 mg/L</span>
+            </div>
             <div class="kpi-src mono">model · res-1</div>
           </div>
-          <div class="kpi">
-            <div class="kpi-label">Root Outlet DO</div>
-            <div class="kpi-value"><span class="mono" id="kpi-do-outlet">—</span><span class="kpi-unit">mg/L</span></div>
+
+          <div class="kpi" data-kpi="do-outlet">
+            <div class="kpi-head">
+              <span class="kpi-label">Root Outlet DO</span>
+              <span class="kpi-kind kind-sensor mono" title="Direct physical optical DO probe at channel outlet">SENSOR</span>
+            </div>
+            <div class="kpi-value">
+              <span class="mono" id="kpi-do-outlet">—</span>
+              <span class="kpi-unit">mg/L</span>
+              <span class="kpi-trend mono is-flat" id="kpi-trend-do-outlet" title="1h trend">—</span>
+            </div>
+            <div class="kpi-range">
+              <div class="kpi-bar" aria-hidden="true">
+                <div class="kpi-bar-safe" id="kpi-safe-do-outlet"></div>
+                <div class="kpi-bar-pin" id="kpi-pin-do-outlet"></div>
+              </div>
+              <span class="kpi-target mono" id="kpi-target-do-outlet">Target: ≥ 6.0 mg/L</span>
+            </div>
             <div class="kpi-src mono">sen-do-1 · ch-1</div>
           </div>
-          <div class="kpi">
-            <div class="kpi-label">Water Flow</div>
-            <div class="kpi-value"><span class="mono" id="kpi-flow">—</span><span class="kpi-unit">L/min</span></div>
-            <div class="kpi-src mono">rated · pump-1</div>
+
+          <div class="kpi" data-kpi="flow" title="Rated pump speed — no inline flow sensor installed; flow loss is inferred from outlet DO.">
+            <div class="kpi-head">
+              <span class="kpi-label">Rated Pump Flow</span>
+              <span class="kpi-kind kind-inferred mono" title="Virtual soft-sensor inferred from sen-do-1 divergence">INFERRED</span>
+            </div>
+            <div class="kpi-value">
+              <span class="mono" id="kpi-flow">—</span>
+              <span class="kpi-unit">L/min</span>
+              <span class="kpi-trend mono is-flat" id="kpi-trend-flow" title="AI flow inference state">—</span>
+            </div>
+            <div class="kpi-range">
+              <div class="kpi-bar" aria-hidden="true">
+                <div class="kpi-bar-safe" id="kpi-safe-flow"></div>
+                <div class="kpi-bar-pin" id="kpi-pin-flow"></div>
+              </div>
+              <span class="kpi-target mono" id="kpi-target-flow">Rated: 3.0 L/min</span>
+            </div>
+            <div class="kpi-src mono" id="kpi-flow-src">no flow meter · inferred via DO</div>
           </div>
-          <div class="kpi">
-            <div class="kpi-label">Greenhouse VPD</div>
-            <div class="kpi-value"><span class="mono" id="kpi-vpd">—</span><span class="kpi-unit">kPa</span></div>
+
+          <div class="kpi" data-kpi="vpd">
+            <div class="kpi-head">
+              <span class="kpi-label">Greenhouse VPD</span>
+              <span class="kpi-kind kind-twin mono" title="Psychrometric calculation derived from sen-tair-1 and sen-rh-1">DERIVED</span>
+            </div>
+            <div class="kpi-value">
+              <span class="mono" id="kpi-vpd">—</span>
+              <span class="kpi-unit">kPa</span>
+              <span class="kpi-trend mono is-flat" id="kpi-trend-vpd" title="1h trend">—</span>
+            </div>
+            <div class="kpi-range">
+              <div class="kpi-bar" aria-hidden="true">
+                <div class="kpi-bar-safe" id="kpi-safe-vpd"></div>
+                <div class="kpi-bar-pin" id="kpi-pin-vpd"></div>
+              </div>
+              <span class="kpi-target mono" id="kpi-target-vpd">Target: 0.4–1.4</span>
+            </div>
             <div class="kpi-src mono">derived · T_air / RH</div>
           </div>
         </section>
@@ -187,7 +298,10 @@
               <section class="panel col-4">
                 <div class="panel-head">
                   <span class="panel-title">Chemical &amp; Tank Levels</span>
-                  <span class="panel-aside mono"><span class="dot ok"></span>CLOSED LOOP</span>
+                  <div class="panel-head-right">
+                    <span class="panel-aside mono" id="lvl-loop-status"><span class="dot ok"></span>CLOSED LOOP</span>
+                    <button class="btn btn-xs mono" id="btn-topup-all" title="Refill Stock A, Stock B, and pH Buffer to 100%">+ TOP UP ALL</button>
+                  </div>
                 </div>
                 <div class="panel-body lvl-list">
                   <div class="lvl-row" id="lvl-a">
@@ -198,6 +312,13 @@
                       <span class="lvl-pct mono" id="lvl-a-pct">100%</span>
                     </div>
                     <div class="bar"><div class="bar-fill" id="lvl-a-fill" style="width: 100%"></div></div>
+                    <div class="lvl-foot">
+                      <span class="lvl-vol mono" id="lvl-a-vol">250 / 250 mL</span>
+                      <span class="lvl-actions">
+                        <button class="btn-mini mono" data-stock-deplete="a" title="Simulator: drain Stock A to test empty-stock warning">Empty</button>
+                        <button class="btn-mini btn-mini-primary mono" data-stock-topup="a" title="Refill Stock A to 100%">+ Top Up</button>
+                      </span>
+                    </div>
                   </div>
                   <div class="lvl-row" id="lvl-b">
                     <div class="lvl-top">
@@ -207,15 +328,29 @@
                       <span class="lvl-pct mono" id="lvl-b-pct">100%</span>
                     </div>
                     <div class="bar"><div class="bar-fill" id="lvl-b-fill" style="width: 100%"></div></div>
+                    <div class="lvl-foot">
+                      <span class="lvl-vol mono" id="lvl-b-vol">250 / 250 mL</span>
+                      <span class="lvl-actions">
+                        <button class="btn-mini mono" data-stock-deplete="b" title="Simulator: drain Stock B to test empty-stock warning">Empty</button>
+                        <button class="btn-mini btn-mini-primary mono" data-stock-topup="b" title="Refill Stock B to 100%">+ Top Up</button>
+                      </span>
+                    </div>
                   </div>
                   <div class="lvl-row" id="lvl-ph">
                     <div class="lvl-top">
                       <span class="lvl-name">pH Buffer</span>
-                      <span class="lvl-formula mono">HNO₃ / KOH · 0.5 M</span>
+                      <span class="lvl-formula mono">HNO₃ / KOH</span>
                       <span class="lvl-state mono" id="lvl-ph-state">STANDBY</span>
                       <span class="lvl-pct mono" id="lvl-ph-pct">100%</span>
                     </div>
                     <div class="bar"><div class="bar-fill slate" id="lvl-ph-fill" style="width: 100%"></div></div>
+                    <div class="lvl-foot">
+                      <span class="lvl-vol mono" id="lvl-ph-vol">350 / 350 mL</span>
+                      <span class="lvl-actions">
+                        <button class="btn-mini mono" data-stock-deplete="ph" title="Simulator: drain pH Buffer to see pH climb &amp; test farmer warning">Empty</button>
+                        <button class="btn-mini btn-mini-primary mono" data-stock-topup="ph" title="Refill pH Buffer to 100%">+ Top Up</button>
+                      </span>
+                    </div>
                   </div>
                   <div class="lvl-row" id="lvl-water">
                     <div class="lvl-top">
@@ -244,6 +379,7 @@
                   <button class="tab" data-tab="farm">Farm</button>
                   <button class="tab" data-tab="sensors">Sensors</button>
                   <button class="tab" data-tab="plants">Plants</button>
+                  <button class="tab" data-tab="all">All</button>
                 </div>
                 <div class="panel-body feed" id="alerts-feed-container"></div>
               </section>
@@ -303,7 +439,42 @@
               <section class="panel col-5 ledger">
                 <div class="panel-head">
                   <span class="panel-title">AI Autopilot &amp; PLC Safety Ledger</span>
-                  <span class="panel-aside mono" id="ledger-stats-subtext">0 APPLIED · 0 BLOCKED</span>
+                  <div class="panel-head-right">
+                    <span class="panel-aside mono" id="ledger-stats-subtext">0 APPLIED · 0 BLOCKED</span>
+                    <button class="btn btn-xs mono" id="btn-export-csv" title="Download full season batch traceability &amp; PLC ledger report as CSV">EXPORT CSV</button>
+                    <button class="btn btn-xs mono" id="btn-test-plc" title="Send a deliberate +600 mL acid overdose to prove the Go PLC Safety Guardian blocks it">TEST PLC</button>
+                  </div>
+                </div>
+                <div class="operator-bar" id="operator-control-bar">
+                  <div class="op-row">
+                    <button class="op-mode-btn is-auto mono" id="btn-toggle-autopilot" title="Toggle between AI Closed-Loop Dosing and Operator Manual / Maintenance Mode">
+                      <span class="dot ok" id="op-mode-dot"></span>
+                      <span id="op-mode-label">AUTO CLOSED-LOOP</span>
+                    </button>
+                    <div class="op-setpoints mono">
+                      <div class="op-sp" title="Adjust crop recipe EC target setpoint (1.0 – 2.8 mS/cm)">
+                        <span class="op-sp-k">EC SET</span>
+                        <button class="op-step" data-sp-step="ec:-0.1">−</button>
+                        <b id="val-sp-ec">2.00 mS</b>
+                        <button class="op-step" data-sp-step="ec:0.1">+</button>
+                      </div>
+                      <div class="op-sp" title="Adjust crop recipe pH target setpoint (5.4 – 6.5 pH)">
+                        <span class="op-sp-k">pH SET</span>
+                        <button class="op-step" data-sp-step="ph:-0.1">−</button>
+                        <b id="val-sp-ph">5.80 pH</b>
+                        <button class="op-step" data-sp-step="ph:0.1">+</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="op-row op-jog-row">
+                    <span class="op-label mono">MANUAL JOG</span>
+                    <div class="op-jog-btns">
+                      <button class="btn-mini btn-mini-primary mono" data-manual-dose="food" title="Manual operator dose: +15 mL Stock A &amp; +15 mL Stock B (verified by PLC Guardian)">+15 mL Food (A+B)</button>
+                      <button class="btn-mini btn-mini-primary mono" data-manual-dose="acid" title="Manual operator dose: +8 mL Nitric Acid (verified by PLC Guardian)">+8 mL Acid</button>
+                      <button class="btn-mini btn-mini-primary mono" data-manual-dose="water" title="Manual operator refill: +5 L Fresh Water (verified by PLC Guardian)">+5 L Water</button>
+                      <button class="btn-mini is-danger-outline mono" data-manual-dose="overdose" title="Simulate human error: +600 mL Acid overdose (blocked by Go PLC Safety Guardian)">⚡ +600 mL Overdose</button>
+                    </div>
+                  </div>
                 </div>
                 <div class="ledger-scroll">
                   <table class="tbl">
@@ -321,60 +492,208 @@
           <div class="view" id="view-gully-matrix">
             <section class="panel">
               <div class="panel-head">
-                <span class="panel-title">Gully Matrix · A–D × 1–3</span>
-                <button class="btn mono" id="btn-open-layout-modal">Edit Farm Spec</button>
+                <span class="panel-title">Gully Matrix · Multi-Rack Bay Overview</span>
+                <div class="panel-head-right">
+                  <span class="panel-aside mono" id="matrix-meta-subtext">CLICK ANY GULLY TO OPEN DEEP-DIVE</span>
+                  <button class="btn btn-xs mono" id="btn-open-layout-modal">Configure Bay Layout</button>
+                </div>
               </div>
               <div class="panel-body">
-                <div class="matrix" id="matrix-grid-container"></div>
+                <div class="matrix-bay" id="matrix-grid-container"></div>
               </div>
             </section>
           </div>
 
           <!-- ======================= VIEW 3: RACK OVERVIEW ======================= -->
           <div class="view" id="view-isometric-rack">
-            <section class="panel">
+            <section class="panel rack-shell">
               <div class="panel-head">
-                <span class="panel-title">Rack Overview · Isometric</span>
-                <span class="panel-aside mono">GULLY PLANES · ALERT PINS</span>
+                <div class="rack-head-left">
+                  <span class="panel-title">Rack Overview · Isometric SCADA</span>
+                  <div class="seg mono" id="rack-bay-switcher" role="group" aria-label="Select rack">
+                    <button class="active" data-rack-view="rack-1">RACK A</button>
+                  </div>
+                </div>
+                <div class="panel-head-right">
+                  <span class="badge mono" id="rack-stage-pill"><span class="dot ok"></span>AI STATE · NOMINAL</span>
+                  <span class="panel-aside mono" id="rack-topo-meta">1 RACK · 2 TIERS · 2 GULLIES</span>
+                  <button class="btn btn-xs mono" id="btn-rack-edit-layout" title="Configure racks (1–4), tiers (1–3), gullies per tier, and plants">EDIT BAY LAYOUT</button>
+                </div>
               </div>
-              <div class="panel-body">
-                <svg class="iso" viewBox="0 0 800 440" preserveAspectRatio="xMidYMid meet" id="svg-isometric-rack"></svg>
+              <div class="rack-layout">
+                <div class="rack-canvas-col">
+                  <div class="iso-stage">
+                    <svg class="iso" viewBox="0 0 880 500" preserveAspectRatio="xMidYMid meet" id="svg-isometric-rack"></svg>
+                    <div class="iso-legend mono" aria-label="Rack status legend">
+                      <span class="leg-item"><i class="dot ok"></i>Nominal</span>
+                      <span class="leg-item"><i class="dot warn"></i>Drift / Low Stock</span>
+                      <span class="leg-item"><i class="dot crit"></i>Fault / Empty</span>
+                      <span class="leg-item"><span class="leg-flow" aria-hidden="true">┄▸</span>Manifold Flow</span>
+                    </div>
+                  </div>
+                </div>
+
+                <aside class="rack-inspector" aria-label="Rack hydraulic and environmental telemetry">
+                  <div class="insp-section">
+                    <div class="insp-head">
+                      <span class="field-label">Active Rack &amp; Tier Telemetry</span>
+                      <div class="seg mono" id="rack-layer-tabs" role="group" aria-label="Select rack layer">
+                        <button class="active" data-layer="tier-2">T2</button>
+                        <button data-layer="tier-1">T1</button>
+                        <button data-layer="res-1">RES-1</button>
+                      </div>
+                    </div>
+                    <div class="insp-card" id="rack-layer-detail"></div>
+                  </div>
+
+                  <div class="insp-section">
+                    <div class="insp-head">
+                      <span class="field-label">Rack Gully Channels</span>
+                      <span class="tag mono" id="rack-gully-count-badge">2 ONLINE</span>
+                    </div>
+                    <div class="rack-gully-scroll" id="rack-gully-table"></div>
+                  </div>
+
+                  <div class="insp-section">
+                    <div class="insp-head">
+                      <span class="field-label">Pumping, Climate &amp; Dosing Skid</span>
+                      <span class="panel-aside mono" id="rack-skid-badge">CLOSED LOOP</span>
+                    </div>
+                    <div class="skid-grid" id="rack-skid-summary"></div>
+                  </div>
+                </aside>
               </div>
             </section>
           </div>
 
           <!-- ======================= VIEW 4: CHANNEL DEEP-DIVE ======================= -->
           <div class="view" id="view-channel-deepdive">
-            <section class="panel">
-              <div class="panel-head">
-                <span class="panel-title">Channel B1 · Growth Lifecycle</span>
-                <span class="panel-aside mono">CH-1 · BATAVIA CRISPHEAD</span>
-              </div>
-              <div class="panel-body">
-                <div class="timeline" id="growth-timeline-grid">
-                  <div class="tl-stage" data-stage="1"><span class="tl-num mono">01</span><b>Germination</b><span class="mono">D00–D06 · ROOT EMERGENCE</span></div>
-                  <div class="tl-stage" data-stage="2"><span class="tl-num mono">02</span><b>Seedling</b><span class="mono">D06–D14 · RAPID EC UPTAKE</span></div>
-                  <div class="tl-stage" data-stage="3"><span class="tl-num mono">03</span><b>Vegetative Growth</b><span class="mono">D14–D25 · MAX LEAF MASS</span></div>
-                  <div class="tl-stage" data-stage="4"><span class="tl-num mono">04</span><b>Canopy / Harvest</b><span class="mono">D25–D30 · TARGET WEIGHT</span></div>
+            <div class="grid-12">
+              <section class="panel col-12">
+                <div class="panel-head">
+                  <div class="rack-head-left">
+                    <span class="panel-title" id="deepdive-title">Channel Deep-Dive · Gully A1 (ch-1)</span>
+                    <span class="badge mono" id="deepdive-breadcrumb">RACK A · TIER 1 · BATAVIA CRISPHEAD</span>
+                  </div>
+                  <div class="panel-head-right">
+                    <button class="btn btn-xs mono" id="btn-deepdive-prev" title="Previous gully">◀ PREV</button>
+                    <div class="select-wrap">
+                      <select class="select select-sm mono" id="deepdive-channel-select" aria-label="Select gully channel"></select>
+                      <svg class="ico ico-12 select-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
+                    </div>
+                    <button class="btn btn-xs mono" id="btn-deepdive-next" title="Next gully">NEXT ▶</button>
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
+
+              <!-- Axial DO Mass-Transfer Profile & Port Telemetry Table -->
+              <section class="panel col-8">
+                <div class="panel-head">
+                  <span class="panel-title">Axial Dissolved O₂ Mass-Transfer Curve &amp; Port Telemetry</span>
+                  <span class="panel-aside mono" id="deepdive-profile-meta">SLOPE 2.0% · 1.50 m · CLICK ANY PLANT PORT</span>
+                </div>
+                <div class="panel-body deepdive-canvas-wrap">
+                  <svg class="deepdive-svg" viewBox="0 0 760 186" preserveAspectRatio="xMidYMid meet" id="svg-channel-cross-section"></svg>
+                  <div class="rack-gully-scroll deepdive-port-scroll" id="deepdive-port-table"></div>
+                </div>
+              </section>
+
+              <!-- Plant Port Inspector -->
+              <section class="panel col-4">
+                <div class="panel-head">
+                  <span class="panel-title">Plant Port &amp; Root-Zone Inspector</span>
+                  <span class="tag ok mono" id="deepdive-port-badge">PORT #1</span>
+                </div>
+                <div class="panel-body deepdive-port-body">
+                  <div class="seg mono deepdive-port-tabs" id="deepdive-port-tabs" role="group" aria-label="Select plant port"></div>
+                  <div class="insp-card" id="deepdive-port-card"></div>
+                </div>
+              </section>
+
+              <!-- Hydraulics & Film Physics -->
+              <section class="panel col-4">
+                <div class="panel-head">
+                  <span class="panel-title">Channel Hydraulics &amp; Film Regime</span>
+                  <span class="panel-aside mono" id="deepdive-flow-regime">LAMINAR NFT</span>
+                </div>
+                <div class="panel-body" id="deepdive-hydraulics"></div>
+              </section>
+
+              <!-- Growth Stage & Stress Breakdown -->
+              <section class="panel col-4">
+                <div class="panel-head">
+                  <span class="panel-title">Crop Lifecycle &amp; Stress Breakdown</span>
+                  <span class="panel-aside mono" id="deepdive-vigor-badge">100% VIGOR</span>
+                </div>
+                <div class="panel-body deepdive-phys-body">
+                  <div class="timeline timeline-compact" id="growth-timeline-grid">
+                    <div class="tl-stage" data-stage="1"><span class="tl-num mono">01</span><b>Germination</b><span class="mono">D00–D06</span></div>
+                    <div class="tl-stage" data-stage="2"><span class="tl-num mono">02</span><b>Seedling</b><span class="mono">D06–D14</span></div>
+                    <div class="tl-stage" data-stage="3"><span class="tl-num mono">03</span><b>Vegetative</b><span class="mono">D14–D25</span></div>
+                    <div class="tl-stage" data-stage="4"><span class="tl-num mono">04</span><b>Harvest</b><span class="mono">D25–D30</span></div>
+                  </div>
+                  <div class="stress-list" id="deepdive-stress-bars"></div>
+                </div>
+              </section>
+
+              <!-- Gully Outlet DO Trend -->
+              <section class="panel col-4">
+                <div class="panel-head">
+                  <span class="panel-title">Gully DO History (Inlet vs. Outlet)</span>
+                  <span class="panel-aside mono" id="deepdive-do-meta">SEN-DO-1</span>
+                </div>
+                <div class="panel-body">
+                  <div class="legend-row mono">
+                    <span><i class="swatch teal"></i>OUTLET <b id="deepdive-val-do-out">—</b></span>
+                    <span><i class="swatch slate"></i>TANK INLET <b id="deepdive-val-do-in">—</b></span>
+                    <span class="legend-delta">ΔDO <b id="deepdive-val-do-drop">—</b></span>
+                  </div>
+                  <svg class="chart chart-vital" id="svg-deepdive-do-chart"></svg>
+                </div>
+              </section>
+            </div>
           </div>
 
           <!-- ======================= VIEW 5: JUDGE / PROOF ======================= -->
           <div class="view" id="view-judge-proof">
-            <section class="panel">
-              <div class="panel-head">
-                <span class="panel-title">Noisy Sensor vs. Physics Ground Truth</span>
-                <span class="panel-aside mono">RESIDUAL ANOMALY DETECTION</span>
-              </div>
-              <table class="tbl">
-                <thead>
-                  <tr><th>Component / Sensor</th><th class="r">Sensor</th><th class="r">Ground Truth</th><th class="r">Residual Δ</th><th>Inference</th></tr>
-                </thead>
-                <tbody id="proof-table-body"></tbody>
-              </table>
-            </section>
+            <div class="grid-12">
+              <section class="panel col-7">
+                <div class="panel-head">
+                  <span class="panel-title">Noisy Sensor vs. Physics Ground Truth</span>
+                  <span class="panel-aside mono">RESIDUAL Δ = MEASURED VS. TWIN MODEL</span>
+                </div>
+                <table class="tbl">
+                  <thead>
+                    <tr><th>Component / Sensor</th><th class="r">Sensor Reading</th><th class="r">Ground Truth</th><th class="r">Residual Δ</th><th>Inference</th></tr>
+                  </thead>
+                  <tbody id="proof-table-body"></tbody>
+                </table>
+              </section>
+
+              <section class="panel col-5">
+                <div class="panel-head">
+                  <span class="panel-title">Competition Chaos &amp; Detection Proof</span>
+                  <span class="tag mono" id="rack-latency-badge">DECOUPLED · SYNCED</span>
+                </div>
+                <div class="panel-body proof-chaos-body">
+                  <div class="insp-head">
+                    <span class="field-label">Inject Hidden Fault (Ground Truth Physics Only)</span>
+                    <button class="btn btn-xs mono" id="btn-rack-clear-faults" title="Clear injected ground-truth faults">CLEAR ALL</button>
+                  </div>
+                  <div class="quick-fault-grid" id="rack-quick-faults">
+                    <button class="qf-btn" data-quick-fault="pump_degradation">Clog Pump (-85%)</button>
+                    <button class="qf-btn" data-quick-fault="probe_drift">pH Probe Lie</button>
+                    <button class="qf-btn" data-quick-fault="reservoir_leak">Leak Tank (1 mm²)</button>
+                    <button class="qf-btn" data-quick-fault="heat_wave">Heatwave (+6 °C)</button>
+                  </div>
+
+                  <div class="insp-head" style="margin-top: 6px">
+                    <span class="field-label">God-Mode Ground Truth vs. AI Detection Log</span>
+                  </div>
+                  <div class="god-log" id="rack-truth-timeline"></div>
+                </div>
+              </section>
+            </div>
           </div>
         </main>
       </div>
@@ -422,7 +741,7 @@
             <button class="fault-opt" data-kind="nutrient_imbalance">
               <span class="code mono">NUTRIENT_IMBALANCE · stock-a</span>
               <b>Mis-mix Stock A</b>
-              <span>Stock A at 300% strength. EC overshoots per dose.</span>
+              <span>Stock A at 4× strength. Triggers on next Stock A dose.</span>
             </button>
           </div>
 
@@ -445,20 +764,27 @@
     <div class="modal-backdrop" id="modal-layout-backdrop">
       <div class="modal">
         <div class="modal-head">
-          <span class="panel-title">Custom Farm Layout · farm.schema.json</span>
+          <span class="panel-title">Configure Multi-Rack Bay Layout · farm.schema.json</span>
           <button class="btn btn-icon btn-ghost" id="modal-layout-close" aria-label="Close">
             <svg class="ico ico-14" viewBox="0 0 24 24"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
           </button>
         </div>
         <div class="modal-body">
-          <div class="field-label">Channels / gullies</div>
-          <div class="slider-row"><input type="range" id="slider-channel-count" min="1" max="24" value="2" /><span class="mono" id="val-channel-count">2</span></div>
-          <div class="field-label">Plants per channel</div>
-          <div class="slider-row"><input type="range" id="slider-plants-per-channel" min="4" max="24" value="6" /><span class="mono" id="val-plants-per-channel">6</span></div>
-          <div class="field-label">Reservoir volume</div>
-          <div class="slider-row"><input type="range" id="slider-tank-volume" min="50" max="1000" step="10" value="100" /><span class="mono" id="val-tank-volume">100 L</span></div>
-          <div class="field-label">Pump rated flow</div>
-          <div class="slider-row"><input type="range" id="slider-pump-flow" min="1" max="25" step="0.5" value="3.0" /><span class="mono" id="val-pump-flow">3.0 L/min</span></div>
+          <div class="bay-summary-banner mono" id="val-bay-summary">1 RACK × 2 TIERS × 1 GULLY/TIER = 2 GULLIES · 12 PLANTS</div>
+          <div class="field-label">Racks in Bay (Rack A – B)</div>
+          <div class="slider-row"><input type="range" id="slider-rack-count" min="1" max="2" value="1" /><span class="mono" id="val-rack-count">1 Rack</span></div>
+          <div class="field-label">Vertical Tiers per Rack</div>
+          <div class="slider-row"><input type="range" id="slider-tiers-per-rack" min="1" max="3" value="2" /><span class="mono" id="val-tiers-per-rack">2 Tiers</span></div>
+          <div class="field-label">NFT Gullies per Tier</div>
+          <div class="slider-row"><input type="range" id="slider-gullies-per-tier" min="1" max="3" value="1" /><span class="mono" id="val-gullies-per-tier">1 Gully</span></div>
+          <div class="field-label">Total Active Gullies (Override)</div>
+          <div class="slider-row"><input type="range" id="slider-channel-count" min="1" max="18" value="2" /><span class="mono" id="val-channel-count">2</span></div>
+          <div class="field-label">Plant Ports per Gully</div>
+          <div class="slider-row"><input type="range" id="slider-plants-per-channel" min="4" max="12" value="6" /><span class="mono" id="val-plants-per-channel">6</span></div>
+          <div class="field-label">Central Reservoir Volume</div>
+          <div class="slider-row"><input type="range" id="slider-tank-volume" min="50" max="600" step="10" value="100" /><span class="mono" id="val-tank-volume">100 L</span></div>
+          <div class="field-label">Main Pump Rated Flow</div>
+          <div class="slider-row"><input type="range" id="slider-pump-flow" min="2" max="30" step="0.5" value="3.0" /><span class="mono" id="val-pump-flow">3.0 L/min</span></div>
         </div>
         <div class="modal-foot">
           <button class="btn mono" id="modal-layout-cancel">CANCEL</button>

@@ -50,7 +50,18 @@ function egyptPreset({ id, emoji, title, subtitle, months, startDoy, ageDays, ta
     pump: { flowLMin: 3.0 },
     aerator: { airFlowLMin: 4.0, otrGH: 2.5 },
     fans: { placement: 'horizontal_canopy', airflow: 0.12 },
-    channels: { count: 2, length: 1.5, width: 0.1, slope: 0.02, plantsPerChannel: 6, spacing: 0.22, ageDays },
+    channels: {
+      count: 2,
+      racks: 1,
+      tiersPerRack: 2,
+      gulliesPerTier: 1,
+      length: 1.5,
+      width: 0.1,
+      slope: 0.02,
+      plantsPerChannel: 6,
+      spacing: 0.22,
+      ageDays,
+    },
     chemistry: { sourceProfile: 'egypt_nile_fresh', alk, ions },
     sensors: [...ALL_SENSORS],
     targets: { ec: ecTarget, ph: phTarget },
@@ -122,7 +133,138 @@ export function channelId(i) {
 }
 
 export function plantCount(design) {
+  if (!design?.channels) return 0;
   return design.channels.count * design.channels.plantsPerChannel;
+}
+
+/**
+ * Derive a structured multi-rack bay topology (Racks × Tiers/Rack × Gullies/Tier)
+ * for any farm design and active channels list.
+ */
+export function resolveBayLayout(design, rawChannels) {
+  const c = design?.channels || {};
+  const list = rawChannels?.length
+    ? rawChannels
+    : Array.from({ length: Math.max(1, c.count || 2) }, (_, i) => ({
+        id: channelId(i),
+        length_m: c.length || 1.5,
+        width_m: c.width || 0.1,
+        slope: c.slope || 0.02,
+        plant_spacing_m: c.spacing || 0.22,
+        plants_per_channel: c.plantsPerChannel || 6,
+      }));
+  const N = list.length;
+
+  let racksCount = c.racks;
+  let tiersPerRack = c.tiersPerRack;
+  let gulliesPerTier = c.gulliesPerTier;
+
+  if (!racksCount || !tiersPerRack || !gulliesPerTier || racksCount * tiersPerRack * gulliesPerTier < N) {
+    if (N <= 1) {
+      racksCount = 1; tiersPerRack = 1; gulliesPerTier = 1;
+    } else if (N === 2) {
+      racksCount = 1; tiersPerRack = 2; gulliesPerTier = 1;
+    } else if (N <= 4) {
+      racksCount = 1; tiersPerRack = 2; gulliesPerTier = Math.ceil(N / 2);
+    } else if (N <= 8) {
+      racksCount = 2; tiersPerRack = 2; gulliesPerTier = Math.ceil(N / 4);
+    } else if (N <= 12) {
+      racksCount = 2; tiersPerRack = 3; gulliesPerTier = Math.ceil(N / 6);
+    } else {
+      racksCount = 2;
+      tiersPerRack = 3;
+      gulliesPerTier = Math.ceil(N / (racksCount * tiersPerRack));
+    }
+  }
+
+  const rackLetters = ['A', 'B', 'C', 'D'];
+  const tierLetters = ['1', '2', '3'];
+  const racks = Array.from({ length: racksCount }, (_, rIdx) => {
+    const rLetter = rackLetters[rIdx] || String(rIdx + 1);
+    const tiers = Array.from({ length: tiersPerRack }, (__, tIdx) => ({
+      idx: tIdx,
+      id: `rack-${rIdx + 1}-tier-${tIdx + 1}`,
+      shortId: `tier-${tIdx + 1}`,
+      tabLabel: `T${tierLetters[tIdx]}`,
+      shortLabel: `TIER ${tierLetters[tIdx]}`,
+      title:
+        tiersPerRack === 1
+          ? `Rack ${rLetter} · Single NFT Bench`
+          : tIdx === tiersPerRack - 1
+            ? `Rack ${rLetter} · Tier ${tierLetters[tIdx]} (Upper)`
+            : tIdx === 0
+              ? `Rack ${rLetter} · Tier ${tierLetters[tIdx]} (Lower)`
+              : `Rack ${rLetter} · Tier ${tierLetters[tIdx]} (Mid)`,
+      rackIdx: rIdx,
+      rackId: `rack-${rIdx + 1}`,
+      rackLetter: rLetter,
+      items: [],
+    }));
+    return {
+      idx: rIdx,
+      id: `rack-${rIdx + 1}`,
+      letter: rLetter,
+      label: `RACK ${rLetter}`,
+      title: `Rack ${rLetter} NFT Unit`,
+      tiers,
+      items: [],
+    };
+  });
+
+  const allItems = [];
+  list.forEach((ch, globalIdx) => {
+    const rIdx = Math.min(racksCount - 1, Math.floor((globalIdx * racksCount) / N));
+    const rack = racks[rIdx];
+    const localIdx = globalIdx - Math.floor((rIdx * N) / racksCount);
+    const rackShare = Math.max(1, Math.ceil(N / racksCount));
+    const tIdx = Math.min(tiersPerRack - 1, Math.floor((localIdx * tiersPerRack) / rackShare));
+    const tier = rack.tiers[tIdx];
+    const slotIdx = tier.items.length;
+    const sensorId = `sen-do-${globalIdx + 1}`;
+    const slotCode = `${rack.letter}${tIdx + 1}-${slotIdx + 1}`;
+
+    // Realistic hydraulic & canopy microclimate factors per rack/tier position
+    const headFactor = Math.max(0.84, 1 - rIdx * 0.025 - tIdx * 0.022 - slotIdx * 0.008);
+    const tempOffsetC = tIdx * 0.35 + rIdx * 0.1;
+    const ppfdUmol = Math.round(210 + tIdx * 45 - slotIdx * 6);
+
+    const item = {
+      ch,
+      idx: globalIdx,
+      chId: ch.id,
+      sensorId,
+      slotCode,
+      rackIdx: rIdx,
+      rackId: rack.id,
+      rackLetter: rack.letter,
+      rackLabel: rack.label,
+      tierIdx: tIdx,
+      tierId: tier.id,
+      tierShortId: tier.shortId,
+      tierLabel: tier.shortLabel,
+      slotIdx,
+      headFactor,
+      tempOffsetC,
+      ppfdUmol,
+    };
+    tier.items.push(item);
+    rack.items.push(item);
+    allItems.push(item);
+  });
+
+  // Prune any empty tiers/racks if N < racksCount * tiersPerRack
+  const activeRacks = racks
+    .map((r) => ({ ...r, tiers: r.tiers.filter((t) => t.items.length > 0) }))
+    .filter((r) => r.items.length > 0);
+
+  return {
+    racks: activeRacks,
+    racksCount: activeRacks.length,
+    tiersPerRack,
+    gulliesPerTier,
+    totalGullies: N,
+    allItems,
+  };
 }
 
 /** Derived tank geometry: keep a realistic ~0.48 m water column. */
@@ -166,9 +308,13 @@ export function buildFarmSpec(design) {
   const floorArea = Math.max(design.enclosure.floorArea || 0.96, minRequiredFloorArea);
   const encHeight = design.enclosure.height || 3.0;
 
-  // Ensure pump rated flow provides sufficient flow per channel (> 0.05 L/min per channel)
-  const minRequiredPumpFlow = Math.max(1.0, c.count * 0.8); // ~0.8 L/min per channel nominal
+  // Scale pump, aerator, and fan capacity proportionally with channel count (baseline = 2 gullies)
+  const bayScale = Math.max(1, c.count / 2);
+  const minRequiredPumpFlow = Math.max(1.0, c.count * 1.2); // ~1.2 L/min per channel nominal
   const pumpFlowLMin = Math.max(design.pump.flowLMin || 3.0, minRequiredPumpFlow);
+  const aeratorAirFlowLMin = r2((design.aerator.airFlowLMin || 4.0) * bayScale);
+  const aeratorOtrGH = r2((design.aerator.otrGH || 2.5) * bayScale);
+  const fanAirflowM3S = r2((design.fans.airflow || 0.12) * bayScale);
 
   // Attach sensors dynamically: aqueous sensors attach to reservoir and channel(s)
   const attachTo = { reservoir: IDS.reservoir, channel: channelId(0), enclosure: IDS.enclosure };
@@ -187,10 +333,9 @@ export function buildFarmSpec(design) {
     }
   }
 
-  // If there are multiple channels, ensure channels beyond ch-1 have channel DO monitoring probes where applicable
+  // If there are multiple channels, attach channel DO monitoring probes (up to Go Engine MaxSensors = 32)
   for (let i = 1; i < c.count; i++) {
     const chId = channelId(i);
-    // Attach a channel DO sensor if DO is in design sensors
     if (design.sensors.includes('DO') && sensors.length < 32) {
       sensors.push({
         id: `sen-do-${i + 1}`,
@@ -229,8 +374,8 @@ export function buildFarmSpec(design) {
       placement: design.reservoir.placement,
     },
     pump: { id: IDS.pump, rated_flow_l_min: r2(pumpFlowLMin), initial_health: 1.0 },
-    aerator: { id: IDS.aerator, air_flow_l_min: design.aerator.airFlowLMin, otr_std_g_h: design.aerator.otrGH },
-    fans: { id: IDS.fans, placement: design.fans.placement, airflow_m3_s: design.fans.airflow },
+    aerator: { id: IDS.aerator, air_flow_l_min: aeratorAirFlowLMin, otr_std_g_h: aeratorOtrGH },
+    fans: { id: IDS.fans, placement: design.fans.placement, airflow_m3_s: fanAirflowM3S },
     channels,
     source_water: { profile: chem.sourceProfile, alkalinity_meq_l: chem.alk },
     initial_solution: { profile: 'hoagland_lettuce_std', alkalinity_meq_l: chem.alk, ions_mmol_l: { ...chem.ions } },

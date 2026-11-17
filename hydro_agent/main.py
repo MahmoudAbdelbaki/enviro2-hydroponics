@@ -107,32 +107,40 @@ def run_demo_scenario(client: TwinClient, agent: HydroAutonomousAgent):
     logger.info("=" * 70)
 
 
-def resolve_simulation_id(client: TwinClient, preferred_farm_id: Optional[str] = None) -> str:
-    """Find the most relevant active simulation or spin up a new verified one.
+def _is_active_sim(client: TwinClient, sim_id: str) -> bool:
+    """Return True if sim_id is currently active in the Go backend's memory."""
+    try:
+        client.get_ground_truth(sim_id)
+        return True
+    except Exception:
+        return False
 
-    Guarantees a valid UUID is returned; never returns a dummy non-UUID string.
+
+def resolve_simulation_id(client: TwinClient, preferred_farm_id: Optional[str] = None) -> str:
+    """Find an active running simulation in backend memory or spin up a new verified one.
+
+    Guarantees a valid active UUID is returned; never attaches to stale DB-only rows
+    left over from previous backend runs or paused frontend UI sessions.
     """
     env_sim = os.getenv("HYDRO_SIM_ID", "").strip()
     if env_sim:
         logger.info("Using simulation ID from HYDRO_SIM_ID: %s", env_sim)
         return env_sim
 
-    # 1. Discover existing simulations in the twin
+    # 1. Discover active running simulations in the twin
     try:
         sims = client.list_simulations()
-        if sims:
-            # Prefer a running simulation if one exists
-            running = [s for s in sims if s.get("mode") == "running"]
-            chosen = running[0] if running else sims[0]
-            chosen_id = chosen.get("id") or chosen.get("simulation_id")
-            if chosen_id:
+        for s in sims:
+            if s.get("mode") != "running":
+                continue
+            chosen_id = str(s.get("id") or s.get("simulation_id") or "")
+            if chosen_id and _is_active_sim(client, chosen_id):
                 logger.info(
-                    "Auto-attached to existing simulation %s (mode: %s, tick: %s)",
+                    "Auto-attached to active running simulation %s (tick: %s)",
                     chosen_id,
-                    chosen.get("mode"),
-                    chosen.get("tick_index"),
+                    s.get("tick_index"),
                 )
-                return str(chosen_id)
+                return chosen_id
     except Exception as e:
         logger.warning("Could not list simulations: %s", e)
 
@@ -207,12 +215,16 @@ def main():
                 if not pinned_env_sim:
                     try:
                         sims = client.list_simulations()
-                        running_sims = [s for s in sims if s.get("mode") == "running"]
-                        if running_sims:
-                            newest_running = str(running_sims[0].get("id") or running_sims[0].get("simulation_id"))
-                            if newest_running and newest_running != sim_id:
+                        for s in sims:
+                            if s.get("mode") != "running":
+                                continue
+                            newest_running = str(s.get("id") or s.get("simulation_id") or "")
+                            if newest_running and newest_running != sim_id and _is_active_sim(client, newest_running):
                                 logger.info("Detected newly active running simulation: %s (switching from %s)", newest_running, sim_id)
                                 sim_id = newest_running
+                                break
+                            if newest_running == sim_id:
+                                break
                     except Exception:
                         pass
 

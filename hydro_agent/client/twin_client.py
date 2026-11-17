@@ -131,7 +131,7 @@ class TwinClient:
             "farm_id": farm_id,
             "seed": seed,
             "step_seconds": step_seconds,
-            "initial_mode": initial_mode,
+            "mode": initial_mode,
             "speed_multiplier": speed_multiplier,
             "scheduled_faults": scheduled_faults or [],
         }
